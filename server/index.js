@@ -12,6 +12,7 @@ const client = new MongoClient(process.env.MONGODB_URI || 'mongodb://127.0.0.1:2
 const database = client.db('bsed_portal')
 const students = database.collection('students')
 const admins = database.collection('admins')
+const teachers = database.collection('teachers')
 const sessions = database.collection('sessions')
 const distDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist')
 const sessionDurationMs = 7 * 24 * 60 * 60 * 1000
@@ -65,8 +66,9 @@ function requireRoles(roles) {
     try {
       const session = await sessions.findOne({ tokenHash: hashSession(token), expiresAt: { $gt: new Date() }, role: { $in: roles } })
       if (!session) return res.status(403).json({ message: 'You do not have permission to access this resource.' })
-      req.admin = await admins.findOne({ studentId: session.studentId }, { projection: { passwordHash: 0, passwordSalt: 0 } })
-      if (!req.admin || !roles.includes(session.role)) return res.status(403).json({ message: 'You do not have permission to access this resource.' })
+      const accounts = session.role === 'teacher' ? teachers : admins
+      req.account = await accounts.findOne({ studentId: session.studentId }, { projection: { passwordHash: 0, passwordSalt: 0 } })
+      if (!req.account || !roles.includes(session.role)) return res.status(403).json({ message: 'You do not have permission to access this resource.' })
       next()
     } catch {
       res.status(503).json({ message: 'Account service is temporarily unavailable.' })
@@ -76,6 +78,7 @@ function requireRoles(roles) {
 
 const requireAdmin = requireRoles(['admin', 'superadmin'])
 const requireSuperadmin = requireRoles(['superadmin'])
+const requireTeacher = requireRoles(['teacher'])
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -101,18 +104,19 @@ app.post('/api/auth/login', async (req, res) => {
   const login = String(req.body?.login || req.body?.studentId || '').trim()
   const password = String(req.body?.password || '')
   const isStudentId = /^\d{8}$/.test(login)
-  const isAdminUsername = /^[a-zA-Z][a-zA-Z0-9._-]{2,31}$/.test(login)
-  if ((!isStudentId && !isAdminUsername) || !password) return res.status(400).json({ message: 'Enter an 8-digit Student ID or admin username, plus password.' })
+  const isUsername = /^[a-zA-Z][a-zA-Z0-9._-]{2,31}$/.test(login)
+  if ((!isStudentId && !isUsername) || !password) return res.status(400).json({ message: 'Enter an 8-digit ID or staff username, plus password.' })
 
   try {
     const student = isStudentId ? await students.findOne({ studentId: login }) : null
     const admin = student ? null : await admins.findOne(isStudentId ? { studentId: login } : { username: login.toLowerCase() })
-    const account = student || admin
+    const teacher = student || admin ? null : await teachers.findOne(isStudentId ? { studentId: login } : { username: login.toLowerCase() })
+    const account = student || admin || teacher
     if (!account || !(await verifyPassword(password, account))) return res.status(401).json({ message: 'Student ID or password is incorrect.' })
 
     const token = newSessionToken()
     const expiresAt = new Date(Date.now() + sessionDurationMs)
-    const role = admin ? (admin.role === 'superadmin' ? 'superadmin' : 'admin') : 'student'
+    const role = admin ? (admin.role === 'superadmin' ? 'superadmin' : 'admin') : teacher ? 'teacher' : 'student'
     await sessions.insertOne({ tokenHash: hashSession(token), studentId: account.studentId, role, expiresAt, createdAt: new Date() })
     setSessionCookie(res, token)
     res.json({ student: publicStudent({ ...account, role }) })
@@ -128,7 +132,7 @@ app.get('/api/auth/me', async (req, res) => {
   try {
     const session = await sessions.findOne({ tokenHash: hashSession(token), expiresAt: { $gt: new Date() } })
     if (!session) { clearSessionCookie(res); return res.status(401).json({ message: 'Sign in to continue.' }) }
-    const collection = ['admin', 'superadmin'].includes(session.role) ? admins : students
+    const collection = ['admin', 'superadmin'].includes(session.role) ? admins : session.role === 'teacher' ? teachers : students
     const account = await collection.findOne({ studentId: session.studentId }, { projection: { _id: 0, studentId: 1, name: 1, major: 1, role: 1 } })
     if (!account) { await sessions.deleteOne({ _id: session._id }); clearSessionCookie(res); return res.status(401).json({ message: 'Sign in to continue.' }) }
     res.json({ student: publicStudent({ ...account, role: session.role || 'student' }) })
@@ -153,10 +157,10 @@ app.post('/api/auth/password', async (req, res) => {
   try {
     const session = await sessions.findOne({ tokenHash: hashSession(token), expiresAt: { $gt: new Date() } })
     if (!session) return res.status(401).json({ message: 'Sign in to continue.' })
-    const collection = ['admin', 'superadmin'].includes(session.role) ? admins : students
+    const collection = ['admin', 'superadmin'].includes(session.role) ? admins : session.role === 'teacher' ? teachers : students
     const account = await collection.findOne({ studentId: session.studentId })
     if (!account || !(await verifyPassword(currentPassword, account))) return res.status(401).json({ message: 'Current password is incorrect.' })
-    const minimumLength = ['admin', 'superadmin'].includes(session.role) ? 12 : 10
+    const minimumLength = ['admin', 'superadmin', 'teacher'].includes(session.role) ? 12 : 10
     if (newPassword.length < minimumLength) return res.status(400).json({ message: `Use at least ${minimumLength} characters for the new password.` })
     const credentials = await hashPassword(newPassword)
     await collection.updateOne({ _id: account._id }, { $set: credentials, passwordChangedAt: new Date() })
@@ -191,7 +195,7 @@ app.post('/api/admin/students', requireAdmin, async (req, res) => {
     return res.status(400).json({ message: 'Enter an 8-digit ID, name, valid major, and password with at least 10 characters.' })
   }
   try {
-    if (await admins.findOne({ studentId })) return res.status(409).json({ message: 'That Student ID already belongs to an admin account.' })
+    if (await admins.findOne({ studentId }) || await teachers.findOne({ studentId })) return res.status(409).json({ message: 'That ID already belongs to a staff account.' })
     const credentials = await hashPassword(password)
     await students.insertOne({ studentId, name, major, ...credentials, createdAt: new Date() })
     res.status(201).json({ student: { studentId, name, major } })
@@ -220,7 +224,7 @@ app.post('/api/superadmin/admins', requireSuperadmin, async (req, res) => {
   }
   try {
     if (await students.findOne({ studentId })) return res.status(409).json({ message: 'That ID already belongs to a student.' })
-    if (await admins.findOne({ $or: [{ studentId }, { username }] })) return res.status(409).json({ message: 'That staff ID or username is already in use.' })
+    if (await admins.findOne({ $or: [{ studentId }, { username }] }) || await teachers.findOne({ $or: [{ studentId }, { username }] })) return res.status(409).json({ message: 'That staff ID or username is already in use.' })
     const credentials = await hashPassword(password)
     const record = { studentId, username, name, role: 'admin', ...credentials, createdAt: new Date() }
     await admins.insertOne(record)
@@ -228,6 +232,48 @@ app.post('/api/superadmin/admins', requireSuperadmin, async (req, res) => {
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ message: 'That staff ID or username is already in use.' })
     res.status(503).json({ message: 'Could not create the admin account.' })
+  }
+})
+
+app.get('/api/superadmin/teachers', requireSuperadmin, async (_req, res) => {
+  try {
+    const records = await teachers.find({}, { projection: { _id: 0, studentId: 1, username: 1, name: 1, major: 1, createdAt: 1 } }).sort({ name: 1 }).toArray()
+    res.json({ teachers: records })
+  } catch {
+    res.status(503).json({ message: 'Could not load teacher accounts.' })
+  }
+})
+
+app.post('/api/superadmin/teachers', requireSuperadmin, async (req, res) => {
+  const studentId = String(req.body?.studentId || '')
+  const username = String(req.body?.username || '').trim().toLowerCase()
+  const name = String(req.body?.name || '').trim()
+  const major = String(req.body?.major || '')
+  const password = String(req.body?.password || '')
+  const validMajors = ['English', 'Filipino', 'Mathematics', 'Science', 'Social Studies', 'MAPEH']
+  if (!/^\d{8}$/.test(studentId) || !/^[a-z][a-z0-9._-]{2,31}$/.test(username) || name.length < 2 || !validMajors.includes(major) || password.length < 12) {
+    return res.status(400).json({ message: 'Enter an 8-digit staff ID, valid username, full name, BSED major, and password with at least 12 characters.' })
+  }
+  try {
+    if (await students.findOne({ studentId }) || await admins.findOne({ studentId }) || await teachers.findOne({ $or: [{ studentId }, { username }] }) || await admins.findOne({ username })) {
+      return res.status(409).json({ message: 'That staff ID or username is already in use.' })
+    }
+    const credentials = await hashPassword(password)
+    const record = { studentId, username, name, major, role: 'teacher', ...credentials, createdAt: new Date() }
+    await teachers.insertOne(record)
+    res.status(201).json({ teacher: { studentId, username, name, major, role: 'teacher' } })
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: 'That staff ID or username is already in use.' })
+    res.status(503).json({ message: 'Could not create the teacher account.' })
+  }
+})
+
+app.get('/api/teacher/students', requireTeacher, async (req, res) => {
+  try {
+    const records = await students.find({ major: req.account.major }, { projection: { _id: 0, studentId: 1, name: 1, major: 1, createdAt: 1 } }).sort({ name: 1 }).toArray()
+    res.json({ students: records })
+  } catch {
+    res.status(503).json({ message: 'Could not load students for this major.' })
   }
 })
 
@@ -242,6 +288,8 @@ async function start() {
   await students.createIndex({ studentId: 1 }, { unique: true })
   await admins.createIndex({ studentId: 1 }, { unique: true })
   await admins.createIndex({ username: 1 }, { unique: true, sparse: true })
+  await teachers.createIndex({ studentId: 1 }, { unique: true })
+  await teachers.createIndex({ username: 1 }, { unique: true })
   await sessions.createIndex({ tokenHash: 1 }, { unique: true })
   await sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
   app.listen(port, () => console.log(`BSED portal API listening on http://localhost:${port}`))

@@ -38,7 +38,7 @@ npm run create:admin -- 60000001 "Portal Administrator"
 
 The admin password must be at least 12 characters. To seed an admin account, set `DEFAULT_ADMIN_PASSWORD` to a private value of at least 12 characters, then run `npm run seed:default-admin`. It creates or resets the username `admin` in the configured MongoDB.
 
-To create or reset the superadmin account, set `SUPERADMIN_PASSWORD` to a private value of at least 12 characters, then run `npm run seed:default-superadmin`. It creates or resets username `superadmin`. The superadmin can create admin accounts from **Admin Accounts** and student accounts from **Students**. Admin accounts can create student accounts. Keep the password private.
+To create or reset the superadmin account, set `SUPERADMIN_PASSWORD` to a private value of at least 12 characters, then run `npm run seed:default-superadmin`. It creates or resets username `superadmin`. The superadmin can create admin accounts from **Admin Accounts**, teacher accounts from **Teacher Accounts**, and student accounts from **Students**. Teachers sign in with their username and can view the roster for their assigned BSED major. Admin accounts can create student accounts. Keep staff passwords private.
 
 ### Open the portal on a phone over Wi-Fi
 
