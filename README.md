@@ -36,13 +36,35 @@ To create the first administrator, use the same interactive terminal:
 npm run create:admin -- 60000001 "Portal Administrator"
 ```
 
-The admin password must be at least 12 characters. To add the local preview account, run `npm run seed:default-admin`; it creates username `admin` with password `admin123` in the local MongoDB. Sign in and change it before exposing the portal to other users. After signing in, the admin sees **Students** in the sidebar and can create accounts from the student directory.
+The admin password must be at least 12 characters. To seed an admin account, set `DEFAULT_ADMIN_PASSWORD` to a private value of at least 12 characters, then run `npm run seed:default-admin`. It creates or resets the username `admin` in the configured MongoDB.
 
-To create or reset the local superadmin account, run `npm run seed:default-superadmin`. It creates username `superadmin` with password `superadmin123`. The superadmin can create admin accounts from **Admin Accounts** and student accounts from **Students**. Admin accounts can create student accounts. Change the default password after signing in.
+To create or reset the superadmin account, set `SUPERADMIN_PASSWORD` to a private value of at least 12 characters, then run `npm run seed:default-superadmin`. It creates or resets username `superadmin`. The superadmin can create admin accounts from **Admin Accounts** and student accounts from **Students**. Admin accounts can create student accounts. Keep the password private.
 
 ### Open the portal on a phone over Wi-Fi
 
 Connect the computer and phone to the same Wi-Fi network. Start MongoDB, then open two terminals in the project folder and run `npm run server` in one and `npm run dev:lan` in the other. On the computer, run `ipconfig` and find the Wi-Fi adapter's IPv4 address. On the phone, open `http://<computer-ip>:5173` (for example, `http://192.168.100.187:5173`). If Windows asks, allow Node.js on your private network. This is for local development; do not expose the development server to the public internet.
+
+## Deploy for your group (Render + MongoDB Atlas)
+
+The Express service serves the built Vite app, so one Render web service can host both the portal and API.
+
+1. Create a MongoDB Atlas cluster and a database user with a strong password. Add the Render service's outbound IP addresses to the Atlas project's IP access list. Atlas only accepts connections from listed addresses. If you use a broad allowlist for a short class demo, use a strong database-only user and sample data; do not store real student records.
+2. Seed a superadmin in that Atlas database from your computer. Copy the Atlas connection string and run these PowerShell commands in the project folder, replacing the values privately:
+
+   ```powershell
+   $env:MONGODB_URI = "mongodb+srv://DB_USER:DB_PASSWORD@YOUR_CLUSTER/bsed_portal?retryWrites=true&w=majority"
+   $env:SUPERADMIN_PASSWORD = "choose-a-private-password-of-12-or-more-characters"
+   npm run seed:default-superadmin
+   Remove-Item Env:SUPERADMIN_PASSWORD
+   Remove-Item Env:MONGODB_URI
+   ```
+
+   URL-encode special characters in the database username or password within the connection string. Do not put this URI or password in GitHub.
+3. In Render, create a **Web Service** connected to `Jynxnanana/CHCC-BSED-PORTAL`, branch `main`. Set the build command to `npm ci && npm run build` and the start command to `npm run server`. Set health check path to `/api/health`.
+4. In the Render service's environment variables, add `MONGODB_URI` with the Atlas connection string and `NODE_ENV` with `production`. Render provides the `PORT` value automatically.
+5. Deploy. Share the service's `onrender.com` URL with your groupmates. Sign in as `superadmin` using the private password set in step 2, then create student accounts from **Students**. Give each classmate their own student ID and initial password.
+
+Render deploys a new version when changes are pushed to the connected GitHub branch. Free service plans may sleep or have usage limits; check the plan details in Render before relying on it for a presentation.
 
 ## Portal modules
 

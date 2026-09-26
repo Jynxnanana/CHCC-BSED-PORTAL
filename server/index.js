@@ -2,6 +2,8 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { MongoClient } from 'mongodb'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { hashPassword, hashSession, newSessionToken, verifyPassword } from './auth.js'
 
 const app = express()
@@ -11,6 +13,7 @@ const database = client.db('bsed_portal')
 const students = database.collection('students')
 const admins = database.collection('admins')
 const sessions = database.collection('sessions')
+const distDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist')
 const sessionDurationMs = 7 * 24 * 60 * 60 * 1000
 const cookieName = 'eduportal_session'
 
@@ -226,6 +229,12 @@ app.post('/api/superadmin/admins', requireSuperadmin, async (req, res) => {
     if (error.code === 11000) return res.status(409).json({ message: 'That staff ID or username is already in use.' })
     res.status(503).json({ message: 'Could not create the admin account.' })
   }
+})
+
+app.use(express.static(distDirectory, { index: false, maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0 }))
+app.get('*', (req, res, next) => {
+  if (req.path === '/api' || req.path.startsWith('/api/')) return next()
+  res.sendFile(path.join(distDirectory, 'index.html'), error => { if (error) next(error) })
 })
 
 async function start() {
