@@ -48,7 +48,7 @@ Connect the computer and phone to the same Wi-Fi network. Start MongoDB, then op
 
 The Express service serves the built Vite app, so one Render web service can host both the portal and API.
 
-1. Create a MongoDB Atlas cluster and a database user with a strong password. Add the Render service's outbound IP addresses to the Atlas project's IP access list. Atlas only accepts connections from listed addresses. If you use a broad allowlist for a short class demo, use a strong database-only user and sample data; do not store real student records.
+1. Create a MongoDB Atlas cluster and a database user with a strong password. Add your computer's current public IP to the Atlas project's IP access list for the one-time seed, and add the Render service's outbound IP addresses for runtime access. Atlas only accepts connections from listed addresses. If you use a broad allowlist for a short class demo, use a strong database-only user and sample data; do not store real student records.
 2. Seed a superadmin in that Atlas database from your computer. Copy the Atlas connection string and run these PowerShell commands in the project folder, replacing the values privately:
 
    ```powershell
