@@ -1,0 +1,23 @@
+/* Clearer type scale across the portal while keeping its compact layout. */
+body { font-weight: 450; }
+.nav-link { font-size: 13px; font-weight: 550; }
+.nav-label, .section-kicker, .stat-top, .metric-label, .profile-facts span { font-size: 10px; }
+.school-pill strong, .student-card strong { font-size: 12px; }
+.school-pill small, .student-card small, .help-card span, .sidebar-footer { font-size: 11px; }
+.breadcrumb, .welcome-row p, .term-select, .stat-note, .panel-description { font-size: 12px; }
+.search-box input { font-size: 12px; }
+.feature-heading p, .feature-note, .feature-table td, .table-toolbar, .today-class, .profile-facts strong,
+.admin-intro p, .admin-panel-title p, .admin-directory-heading p, .admin-form input, .admin-form select,
+.admin-table td { font-size: 12px; }
+.feature-table th, .admin-table th, .admin-form label, .admin-major-pill { font-size: 10px; }
+.status-pill, .table-subline, .notification-date, .notification-tag, .metric-foot { font-size: 10px; }
+.student-profile-top h3 { font-size: 16px; }
+.admin-intro h2 { font-size: 21px; }
+.admin-panel-title h3, .admin-directory-heading h3 { font-size: 14px; }
+.feature-action { font-size: 11px; }
+.term-picker, .admin-count { font-size: 11px; }
+.welcome-row h1 { font-weight: 800; }
+@media (max-width: 620px) {
+  .nav-link { font-size: 14px; }
+  .feature-table td, .admin-table td, .profile-facts strong, .feature-heading p { font-size: 12px; }
+}
