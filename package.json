@@ -12,8 +12,7 @@
     "server": "node server/index.js",
     "create:student": "node server/create-student.js",
     "create:admin": "node server/create-admin.js",
-    "seed:default-admin": "node server/seed-default-admin.js",
-    "seed:default-superadmin": "node server/seed-default-superadmin.js"
+    "seed:default-admin": "node server/seed-default-admin.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -5,7 +5,7 @@ import {
   Eye, EyeOff, GraduationCap, LayoutDashboard, Library, LockKeyhole, LogOut, Menu,
   MoreHorizontal, Moon, Search, Settings2, Sparkles, Sun, Users, UserPlus, ShieldCheck,
   CalendarRange, BookMarked, ChartNoAxesCombined, Receipt, CreditCard,
-  Wifi as WifiIcon, Bot as BotIcon, HeartPulse, BellRing, X,
+  Bot as BotIcon, HeartPulse, BellRing, X,
 } from 'lucide-react'
 import PortalPage, { DashboardDetails } from './PortalPages.jsx'
 
@@ -67,44 +67,6 @@ function AdminStudents({ setNotice }) {
   return <section className="admin-students-view"><div className="admin-intro"><div><span className="section-kicker">ADMINISTRATION</span><h2>Student accounts</h2><p>Create accounts for BSED students and manage the student directory.</p></div><span className="admin-count"><Users size={16} /> {students.length} students</span></div><div className="admin-layout"><article className="panel admin-form-panel"><div className="admin-panel-title"><span className="admin-panel-icon"><UserPlus size={17} /></span><div><h3>Add a student</h3><p>Set the student's initial password.</p></div></div><form className="admin-form" onSubmit={submitStudent}><label htmlFor="new-student-id">Student ID</label><input id="new-student-id" required inputMode="numeric" maxLength={8} pattern="[0-9]{8}" placeholder="8-digit ID, e.g. 61212024" value={form.studentId} onChange={event => setForm({ ...form, studentId: event.target.value.replace(/\D/g, '').slice(0, 8) })} /><label htmlFor="new-student-name">Full name</label><input id="new-student-name" required minLength={2} placeholder="Student's full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} /><label htmlFor="new-student-major">BSED major</label><select id="new-student-major" value={form.major} onChange={event => setForm({ ...form, major: event.target.value })}>{majors.map(major => <option key={major.code} value={major.name}>{major.name}</option>)}</select><label htmlFor="new-student-password">Initial password</label><input id="new-student-password" required minLength={10} type="password" autoComplete="new-password" placeholder="At least 10 characters" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} />{error && <div className="admin-error" role="alert">{error}</div>}<button className="login-submit" disabled={saving}>{saving ? 'Creating account...' : 'Create student account'} {!saving && <ArrowRight size={15} />}</button></form></article><article className="panel admin-directory"><div className="admin-directory-heading"><div><h3>Student directory</h3><p>Registered student portal accounts</p></div><button className="admin-refresh" onClick={loadStudents} aria-label="Refresh student list"><Sparkles size={15} /></button></div>{loading ? <div className="admin-empty">Loading students...</div> : students.length === 0 ? <div className="admin-empty"><Users size={22} /><strong>No student accounts yet</strong><span>Add the first BSED student with the form.</span></div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>STUDENT</th><th>STUDENT ID</th><th>MAJOR</th></tr></thead><tbody>{students.map(item => <tr key={item.studentId}><td><strong>{item.name}</strong></td><td>{item.studentId}</td><td><span className="admin-major-pill">{item.major}</span></td></tr>)}</tbody></table></div>}</article></div></section>
 }
 
-function SuperadminAccounts({ setNotice }) {
-  const [admins, setAdmins] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [form, setForm] = useState({ studentId: '', username: '', name: '', password: '' })
-
-  const loadAdmins = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch('/api/superadmin/admins', { credentials: 'include' })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.message || 'Could not load admin accounts.')
-      setAdmins(result.admins)
-    } catch (loadError) { setError(loadError.message) }
-    finally { setLoading(false) }
-  }
-
-  useEffect(() => { loadAdmins() }, [])
-
-  const submitAdmin = async event => {
-    event.preventDefault()
-    setError('')
-    setSaving(true)
-    try {
-      const response = await fetch('/api/superadmin/admins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.message || 'Could not create the admin account.')
-      setAdmins(current => [...current, result.admin].sort((a, b) => a.name.localeCompare(b.name)))
-      setForm({ studentId: '', username: '', name: '', password: '' })
-      setNotice(`Admin account created for ${result.admin.name}.`)
-    } catch (saveError) { setError(saveError.message) }
-    finally { setSaving(false) }
-  }
-
-  return <section className="admin-students-view"><div className="admin-intro"><div><span className="section-kicker">SUPERADMIN</span><h2>Administrator accounts</h2><p>Create and review admin accounts for the BSED portal.</p></div><span className="admin-count"><ShieldCheck size={16} /> {admins.length} accounts</span></div><div className="admin-layout"><article className="panel admin-form-panel"><div className="admin-panel-title"><span className="admin-panel-icon"><UserPlus size={17} /></span><div><h3>Add an administrator</h3><p>Admins can create student accounts.</p></div></div><form className="admin-form" onSubmit={submitAdmin}><label htmlFor="new-admin-id">Staff ID</label><input id="new-admin-id" required inputMode="numeric" maxLength={8} pattern="[0-9]{8}" placeholder="8-digit staff ID" value={form.studentId} onChange={event => setForm({ ...form, studentId: event.target.value.replace(/\D/g, '').slice(0, 8) })} /><label htmlFor="new-admin-username">Username</label><input id="new-admin-username" required minLength={3} maxLength={32} pattern="[a-zA-Z][a-zA-Z0-9._-]*" placeholder="e.g. registrar" value={form.username} onChange={event => setForm({ ...form, username: event.target.value.toLowerCase() })} /><label htmlFor="new-admin-name">Full name</label><input id="new-admin-name" required minLength={2} placeholder="Administrator's full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} /><label htmlFor="new-admin-password">Initial password</label><input id="new-admin-password" required minLength={12} type="password" autoComplete="new-password" placeholder="At least 12 characters" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} />{error && <div className="admin-error" role="alert">{error}</div>}<button className="login-submit" disabled={saving}>{saving ? 'Creating account...' : 'Create admin account'} {!saving && <ArrowRight size={15} />}</button></form></article><article className="panel admin-directory"><div className="admin-directory-heading"><div><h3>Admin directory</h3><p>Administrator accounts, including superadmins</p></div><button className="admin-refresh" onClick={loadAdmins} aria-label="Refresh admin list"><Sparkles size={15} /></button></div>{loading ? <div className="admin-empty">Loading admin accounts...</div> : admins.length === 0 ? <div className="admin-empty"><ShieldCheck size={22} /><strong>No admin accounts found</strong></div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>NAME</th><th>USERNAME</th><th>STAFF ID</th><th>ROLE</th></tr></thead><tbody>{admins.map(item => <tr key={item.studentId}><td><strong>{item.name}</strong></td><td>{item.username || item.studentId}</td><td>{item.studentId}</td><td><span className="admin-major-pill">{item.role}</span></td></tr>)}</tbody></table></div>}</article></div></section>
-}
-
 function TeacherAccounts({ setNotice }) {
   const [teachers, setTeachers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -114,7 +76,7 @@ function TeacherAccounts({ setNotice }) {
   const loadTeachers = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/superadmin/teachers', { credentials: 'include' })
+      const response = await fetch('/api/admin/teachers', { credentials: 'include' })
       const result = await response.json()
       if (!response.ok) throw new Error(result.message || 'Could not load teacher accounts.')
       setTeachers(result.teachers)
@@ -127,7 +89,7 @@ function TeacherAccounts({ setNotice }) {
     setError('')
     setSaving(true)
     try {
-      const response = await fetch('/api/superadmin/teachers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) })
+      const response = await fetch('/api/admin/teachers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) })
       const result = await response.json()
       if (!response.ok) throw new Error(result.message || 'Could not create the teacher account.')
       setTeachers(current => [...current, result.teacher].sort((a, b) => a.name.localeCompare(b.name)))
@@ -136,7 +98,7 @@ function TeacherAccounts({ setNotice }) {
     } catch (saveError) { setError(saveError.message) }
     finally { setSaving(false) }
   }
-  return <section className="admin-students-view"><div className="admin-intro"><div><span className="section-kicker">SUPERADMIN</span><h2>Teacher accounts</h2><p>Create teacher logins and assign each one a BSED major.</p></div><span className="admin-count"><Users size={16} /> {teachers.length} teachers</span></div><div className="admin-layout"><article className="panel admin-form-panel"><div className="admin-panel-title"><span className="admin-panel-icon"><UserPlus size={17} /></span><div><h3>Add a teacher</h3><p>Teachers can view students in their assigned major.</p></div></div><form className="admin-form" onSubmit={submitTeacher}><label htmlFor="new-teacher-id">Staff ID</label><input id="new-teacher-id" required inputMode="numeric" maxLength={8} pattern="[0-9]{8}" placeholder="8-digit staff ID" value={form.studentId} onChange={event => setForm({ ...form, studentId: event.target.value.replace(/\D/g, '').slice(0, 8) })} /><label htmlFor="new-teacher-username">Username</label><input id="new-teacher-username" required minLength={3} maxLength={32} pattern="[a-zA-Z][a-zA-Z0-9._-]*" placeholder="e.g. teacher.english" value={form.username} onChange={event => setForm({ ...form, username: event.target.value.toLowerCase() })} /><label htmlFor="new-teacher-name">Full name</label><input id="new-teacher-name" required minLength={2} placeholder="Teacher's full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} /><label htmlFor="new-teacher-major">Assigned BSED major</label><select id="new-teacher-major" value={form.major} onChange={event => setForm({ ...form, major: event.target.value })}>{majors.map(major => <option key={major.code} value={major.name}>{major.name}</option>)}</select><label htmlFor="new-teacher-password">Initial password</label><input id="new-teacher-password" required minLength={12} type="password" autoComplete="new-password" placeholder="At least 12 characters" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} />{error && <div className="admin-error" role="alert">{error}</div>}<button className="login-submit" disabled={saving}>{saving ? 'Creating account...' : 'Create teacher account'} {!saving && <ArrowRight size={15} />}</button></form></article><article className="panel admin-directory"><div className="admin-directory-heading"><div><h3>Teacher directory</h3><p>Registered BSED teacher accounts</p></div><button className="admin-refresh" onClick={loadTeachers} aria-label="Refresh teacher list"><Sparkles size={15} /></button></div>{loading ? <div className="admin-empty">Loading teachers...</div> : teachers.length === 0 ? <div className="admin-empty"><Users size={22} /><strong>No teacher accounts yet</strong><span>Add the first teacher with the form.</span></div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>TEACHER</th><th>USERNAME</th><th>STAFF ID</th><th>MAJOR</th></tr></thead><tbody>{teachers.map(item => <tr key={item.studentId}><td><strong>{item.name}</strong></td><td>{item.username}</td><td>{item.studentId}</td><td><span className="admin-major-pill">{item.major}</span></td></tr>)}</tbody></table></div>}</article></div></section>
+  return <section className="admin-students-view"><div className="admin-intro"><div><span className="section-kicker">ADMINISTRATION</span><h2>Teacher accounts</h2><p>Create teacher logins and assign each one a BSED major.</p></div><span className="admin-count"><Users size={16} /> {teachers.length} teachers</span></div><div className="admin-layout"><article className="panel admin-form-panel"><div className="admin-panel-title"><span className="admin-panel-icon"><UserPlus size={17} /></span><div><h3>Add a teacher</h3><p>Teachers can view students in their assigned major.</p></div></div><form className="admin-form" onSubmit={submitTeacher}><label htmlFor="new-teacher-id">Staff ID</label><input id="new-teacher-id" required inputMode="numeric" maxLength={8} pattern="[0-9]{8}" placeholder="8-digit staff ID" value={form.studentId} onChange={event => setForm({ ...form, studentId: event.target.value.replace(/\D/g, '').slice(0, 8) })} /><label htmlFor="new-teacher-username">Username</label><input id="new-teacher-username" required minLength={3} maxLength={32} pattern="[a-zA-Z][a-zA-Z0-9._-]*" placeholder="e.g. teacher.english" value={form.username} onChange={event => setForm({ ...form, username: event.target.value.toLowerCase() })} /><label htmlFor="new-teacher-name">Full name</label><input id="new-teacher-name" required minLength={2} placeholder="Teacher's full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} /><label htmlFor="new-teacher-major">Assigned BSED major</label><select id="new-teacher-major" value={form.major} onChange={event => setForm({ ...form, major: event.target.value })}>{majors.map(major => <option key={major.code} value={major.name}>{major.name}</option>)}</select><label htmlFor="new-teacher-password">Initial password</label><input id="new-teacher-password" required minLength={12} type="password" autoComplete="new-password" placeholder="At least 12 characters" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} />{error && <div className="admin-error" role="alert">{error}</div>}<button className="login-submit" disabled={saving}>{saving ? 'Creating account...' : 'Create teacher account'} {!saving && <ArrowRight size={15} />}</button></form></article><article className="panel admin-directory"><div className="admin-directory-heading"><div><h3>Teacher directory</h3><p>Registered BSED teacher accounts</p></div><button className="admin-refresh" onClick={loadTeachers} aria-label="Refresh teacher list"><Sparkles size={15} /></button></div>{loading ? <div className="admin-empty">Loading teachers...</div> : teachers.length === 0 ? <div className="admin-empty"><Users size={22} /><strong>No teacher accounts yet</strong><span>Add the first teacher with the form.</span></div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>TEACHER</th><th>USERNAME</th><th>STAFF ID</th><th>MAJOR</th></tr></thead><tbody>{teachers.map(item => <tr key={item.studentId}><td><strong>{item.name}</strong></td><td>{item.username}</td><td>{item.studentId}</td><td><span className="admin-major-pill">{item.major}</span></td></tr>)}</tbody></table></div>}</article></div></section>
 }
 
 function TeacherDashboard({ teacher }) {
@@ -176,13 +138,13 @@ function App() {
   ] : [
     { title: 'MENU', links: [{ name: 'Overview', icon: LayoutDashboard }, { name: 'Notifications', icon: BellRing }, { name: 'Account Settings', icon: Settings2 }] },
     { title: 'ACADEMICS', links: [{ name: 'Class Schedule', icon: CalendarRange }, { name: 'Enrolled Subjects', icon: BookOpen }, { name: 'Enrollment History', icon: ClipboardList }, { name: 'Report of Grades', icon: BookMarked }, { name: 'Academic Evaluation', icon: ChartNoAxesCombined }] },
-    { title: 'STUDENT SERVICES', links: [{ name: 'Student Ledger', icon: Receipt }, { name: 'Online Registration', icon: ClipboardList }, { name: 'Online Payment', icon: CreditCard }, { name: 'WiFi Access', icon: WifiIcon }, { name: 'Virtual Assistant', icon: BotIcon }, { name: 'Community & Services', icon: HeartPulse }, { name: 'BSED Majors', icon: GraduationCap }] },
-    ...(student && ['admin', 'superadmin'].includes(student.role) ? [{ title: 'ADMINISTRATION', links: [{ name: 'Students', icon: ShieldCheck }, ...(student.role === 'superadmin' ? [{ name: 'Admin Accounts', icon: Users }, { name: 'Teacher Accounts', icon: GraduationCap }] : [])] }] : []),
+    { title: 'STUDENT SERVICES', links: [{ name: 'Student Ledger', icon: Receipt }, { name: 'Online Registration', icon: ClipboardList }, { name: 'Online Payment', icon: CreditCard }, { name: 'Virtual Assistant', icon: BotIcon }, { name: 'Community & Services', icon: HeartPulse }, { name: 'BSED Majors', icon: GraduationCap }] },
+    ...(student?.role === 'admin' ? [{ title: 'ADMINISTRATION', links: [{ name: 'Students', icon: ShieldCheck }, { name: 'Teacher Accounts', icon: GraduationCap }] }] : []),
   ]
   const selectNav = (name) => { setActive(name); setMobileNav(false) }
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
-      .then(async response => { if (response.ok) { const result = await response.json(); setStudent(result.student); if (['admin', 'superadmin'].includes(result.student.role)) setActive('Students'); else if (result.student.role === 'teacher') setActive('Teacher Dashboard') } })
+      .then(async response => { if (response.ok) { const result = await response.json(); setStudent(result.student); if (result.student.role === 'admin') setActive('Students'); else if (result.student.role === 'teacher') setActive('Teacher Dashboard') } })
       .catch(() => {})
       .finally(() => setAuthReady(true))
   }, [])
@@ -198,7 +160,7 @@ function App() {
       const result = await response.json()
       if (!response.ok) throw new Error(result.message || 'Could not sign in.')
       setStudent(result.student)
-      if (['admin', 'superadmin'].includes(result.student.role)) setActive('Students')
+      if (result.student.role === 'admin') setActive('Students')
       else if (result.student.role === 'teacher') setActive('Teacher Dashboard')
       setPassword('')
     } catch (error) {
@@ -215,13 +177,13 @@ function App() {
     setIdInput('')
   }
 
-  if (!authReady) return <div className={`app-shell login-shell ${theme === 'dark' ? 'theme-dark' : ''}`}><main className="login-page"><div className="login-top"><div className="brand login-brand"><span className="brand-mark"><GraduationCap size={22} /></span><span>edu<span className="brand-light">portal</span></span></div></div><div className="login-loading">Checking your student account...</div></main></div>
+  if (!authReady) return <div className={`app-shell login-shell ${theme === 'dark' ? 'theme-dark' : ''}`}><main className="login-page"><div className="login-loading">Checking your student account...</div></main></div>
 
   if (!studentId) return (
     <div className={`app-shell login-shell ${theme === 'dark' ? 'theme-dark' : ''}`}>
       <main className="login-page">
-        <div className="login-top"><div className="brand login-brand"><span className="brand-mark"><GraduationCap size={22} strokeWidth={2.3} /></span><span>edu<span className="brand-light">portal</span></span></div><button className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-pressed={theme === 'dark'} onClick={() => { const nextTheme = theme === 'dark' ? 'light' : 'dark'; setTheme(nextTheme); localStorage.setItem('eduportal-theme', nextTheme) }}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button></div>
-        <section className="login-card"><div className="login-emblem"><GraduationCap size={24} /></div><span className="section-kicker">CONCEPCION HOLY CROSS COLLEGE INC. · SCHOOL OF EDUCATION</span><h1>Welcome back</h1><p className="login-intro">Sign in to your BSED student portal and pick up where you left off.</p>
+        <div className="login-top"><div className="login-school-brand"><img src="/chcc-institutional-logo.jpg" alt="Concepcion Holy Cross College Inc. seal" /><span><strong>CONCEPCION HOLY CROSS COLLEGE INC.</strong><small>School of Education</small></span></div><button className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-pressed={theme === 'dark'} onClick={() => { const nextTheme = theme === 'dark' ? 'light' : 'dark'; setTheme(nextTheme); localStorage.setItem('eduportal-theme', nextTheme) }}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button></div>
+        <section className="login-card"><div className="login-emblem"><img src="/education-council-logo.jpg" alt="Concepcion Holy Cross College Education Student Council seal" /></div><span className="section-kicker">CONCEPCION HOLY CROSS COLLEGE INC. · SCHOOL OF EDUCATION</span><h1>Welcome back</h1><p className="login-intro">Sign in to your BSED student portal and pick up where you left off.</p>
           <form className="login-form" onSubmit={signIn} noValidate><label htmlFor="student-id">Student ID or staff username</label><div className="login-input-wrap"><GraduationCap size={17} /><input id="student-id" autoComplete="username" placeholder="8-digit ID or staff username" value={idInput} onChange={event => { setIdInput(event.target.value.trim().slice(0, 32)); setLoginError('') }} /></div><small className="field-hint">Students use an 8-digit ID. Teachers and admins use their username.</small><label htmlFor="student-password">Password</label><div className="login-input-wrap"><LockKeyhole size={16} /><input id="student-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter your password" value={password} onChange={event => { setPassword(event.target.value); setLoginError('') }} /><button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>{loginError && <div className="login-error" role="alert">{loginError}</div>}<button className="login-submit" type="submit" disabled={signingIn}>{signingIn ? 'Signing in...' : 'Sign in'} {!signingIn && <ArrowRight size={16} />}</button></form>
           <div className="login-demo"><span className="demo-info">i</span><span>Use the credentials provided by your school. Contact the student help desk if your account is not active.</span></div>
         </section><footer className="login-footer">© 2026 Concepcion Holy Cross College Inc. <span>·</span> Made for future educators <span className="footer-heart">♥</span></footer>
@@ -232,9 +194,9 @@ function App() {
   return (
     <div className={`app-shell ${theme === 'dark' ? 'theme-dark' : ''}`}>
       <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
-        <div className="brand"><div className="brand-mark"><GraduationCap size={22} strokeWidth={2.3} /></div><span>edu<span className="brand-light">portal</span></span><button className="icon-button mobile-close" onClick={() => setMobileNav(false)} aria-label="Close menu"><X size={19} /></button></div>
-        <div className="school-pill"><span className="school-seal">C</span><span><strong>Concepcion Holy Cross College Inc.</strong><small>School of Education</small></span><ChevronDown size={15} /></div>
-        <div className="student-card"><div className="avatar avatar-student">{studentInitials}</div><div><strong>{studentName}</strong><small>{student.role === 'teacher' ? `${student.major} Teacher` : student.role === 'superadmin' ? 'Superadmin' : student.role === 'admin' ? 'Administrator' : `BSED · ${student.major} Major`}</small></div><button className="icon-button" aria-label="Student options"><MoreHorizontal size={18} /></button></div>
+        <div className="brand"><div className="brand-mark"><img src="/education-council-logo.jpg" alt="" /></div><span>edu<span className="brand-light">portal</span></span><button className="icon-button mobile-close" onClick={() => setMobileNav(false)} aria-label="Close menu"><X size={19} /></button></div>
+        <div className="school-pill"><img className="school-seal" src="/chcc-institutional-logo.jpg" alt="" /><span><strong>Concepcion Holy Cross College Inc.</strong><small>School of Education</small></span><ChevronDown size={15} /></div>
+        <div className="student-card"><div className="avatar avatar-student">{studentInitials}</div><div><strong>{studentName}</strong><small>{student.role === 'teacher' ? `${student.major} Teacher` : student.role === 'admin' ? 'Administrator' : `BSED · ${student.major} Major`}</small></div><button className="icon-button" aria-label="Student options"><MoreHorizontal size={18} /></button></div>
         <nav className="side-nav">{navItems.map(group => <div className="nav-group" key={group.title}><p className="nav-label">{group.title}</p>{group.links.map(({ name, icon: Icon }) => <button key={name} onClick={() => selectNav(name)} className={`nav-link ${active === name ? 'nav-active' : ''}`}><Icon size={18} strokeWidth={1.8} /><span>{name}</span>{name === 'Assignments' && <span className="nav-count">3</span>}</button>)}</div>)}</nav>
         <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><CircleHelp size={18} /></div><div><strong>Need a hand?</strong><span>Visit the student help desk</span></div><ArrowRight size={15} /></div><button className="nav-link settings-link" onClick={signOut}><LogOut size={18} /><span>Sign out</span></button><div className="sidebar-footer">© 2026 Concepcion Holy Cross College Inc.</div></div>
       </aside>
@@ -246,7 +208,7 @@ function App() {
         <div className="page-content">
           {active === 'Overview' && <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot" /> {todayLabel}</div><h1>Welcome, {studentName} <span className="wave">✳</span></h1><p>Ready to inspire the next generation? Here’s your day at a glance.</p></div><button className="term-select">1st Semester 2026–2027 <ChevronDown size={15} /></button></section>}
 
-          {active === 'Teacher Dashboard' && student.role === 'teacher' ? <TeacherDashboard teacher={student} /> : active === 'Teacher Accounts' && student.role === 'superadmin' ? <TeacherAccounts setNotice={setNotice} /> : active === 'Students' && ['admin', 'superadmin'].includes(student.role) ? <AdminStudents setNotice={setNotice} /> : active === 'Admin Accounts' && student.role === 'superadmin' ? <SuperadminAccounts setNotice={setNotice} /> : active === 'Overview' ? <>
+          {active === 'Teacher Dashboard' && student.role === 'teacher' ? <TeacherDashboard teacher={student} /> : active === 'Teacher Accounts' && student.role === 'admin' ? <TeacherAccounts setNotice={setNotice} /> : active === 'Students' && student.role === 'admin' ? <AdminStudents setNotice={setNotice} /> : active === 'Overview' ? <>
           <DashboardDetails student={student} />
           <section className="stats-grid" aria-label="Academic summary"><article className="stat-card"><div className="stat-top"><span>MY UNITS</span><span className="stat-icon purple-icon"><BookOpen size={17} /></span></div><div className="stat-value">21 <small>/ 24 units</small></div><div className="progress-track"><span style={{ width: '72%' }} /></div><div className="stat-note">72% of max load <span className="positive"><ArrowUpRight size={13} /> On track</span></div></article><article className="stat-card"><div className="stat-top"><span>GWA THIS SEMESTER</span><span className="stat-icon green-icon"><Activity size={17} /></span></div><div className="stat-value">1.42 <small className="positive-text"><ArrowDownRight size={15} /> 0.08</small></div><div className="stat-note">Current general weighted average <span className="muted-note">vs. last sem.</span></div></article><article className="stat-card"><div className="stat-top"><span>ATTENDANCE</span><span className="stat-icon orange-icon"><Clock3 size={17} /></span></div><div className="stat-value">96<small>%</small><span className="attendance-bars"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i className="bar-empty" /></span></div><div className="stat-note">Excellent! Keep it up <span className="positive">+2% this month</span></div></article></section>
 

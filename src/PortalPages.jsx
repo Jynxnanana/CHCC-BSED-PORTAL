@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   ArrowDownToLine, ArrowRight, BookOpen, Bot, CalendarDays, Check, ChevronDown,
   Clock3, CreditCard, Download, FileText, HeartPulse, Library, MessageCircle,
-  Printer, Receipt, Search, Send, ShieldCheck, Sparkles, Wifi,
+  Printer, Receipt, Search, Send, ShieldCheck,
 } from 'lucide-react'
 
 const subjects = [
@@ -139,12 +139,6 @@ function PaymentPage({ onNotice }) {
   return <><PageHeading eyebrow="STUDENT FINANCE · PAYMENT PREVIEW" title="Online Payment" description="Review the demo checkout flow for your student account." /><div className="payment-warning"><ShieldCheck size={17} /><span><strong>Demo only:</strong> no money will be collected. A real payment requires the school's payment provider and cashier reconciliation.</span></div><div className="payment-layout"><Panel><h3>Amount due</h3><div className="payment-amount">₱0.00</div><p className="feature-muted">Sample ledger shows no outstanding balance.</p><div className="payment-methods"><strong>Payment method preview</strong>{['Bank transfer', 'E-wallet', 'Over-the-counter'].map(value => <label key={value}><input type="radio" name="payment-method" value={value} checked={method === value} onChange={() => setMethod(value)} />{value}</label>)}</div><label className="reference-label" htmlFor="payment-reference">Reference number (optional demo)</label><input className="feature-text-input" id="payment-reference" placeholder="Enter a sample reference" value={reference} onChange={event => setReference(event.target.value)} /><button className="login-submit" onClick={() => { setPaid(true); onNotice('Demo payment recorded locally only; no charge was made.') }}>{paid ? <><Check size={15} /> Demo submitted</> : <><CreditCard size={15} /> Preview payment</>}</button></Panel><Panel className="payment-summary"><span className="metric-label">PAYMENT SUMMARY</span><div><span>Current balance</span><strong>₱0.00</strong></div><div><span>Payment fee</span><strong>₱0.00</strong></div><div className="payment-total"><span>Total</span><strong>₱0.00</strong></div><small>Payment certification is issued by the cashier after a real transaction is confirmed.</small></Panel></div></>
 }
 
-function WifiPage({ onNotice }) {
-  const [code, setCode] = useState('')
-  const generate = () => { const bytes = new Uint8Array(4); crypto.getRandomValues(bytes); setCode(`EDU-${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase()}`) }
-  return <><PageHeading eyebrow="CAMPUS SERVICES · WIFI" title="WiFi Access Generator" description="Generate a sample access request for campus WiFi." /><div className="payment-warning"><Wifi size={17} /><span><strong>Preview mode:</strong> this code is not connected to campus network authentication and will not grant WiFi access.</span></div><Panel className="wifi-card"><div className="wifi-emblem"><Wifi size={26} /></div><h3>Campus WiFi access</h3><p>Student ID: <strong>{'Student account'}</strong></p>{code ? <div className="wifi-code">{code}</div> : <div className="wifi-code wifi-placeholder">Your sample code will appear here</div>}<div className="wifi-code-meta"><span><Clock3 size={14} /> Demo expiry: 8 hours</span><span>One device · Preview</span></div><button className="login-submit" onClick={generate}><Sparkles size={15} /> Generate sample code</button>{code && <button className="feature-action wifi-copy" onClick={async () => { await navigator.clipboard?.writeText(code); onNotice('Sample WiFi code copied.') }}>Copy code</button>}</Panel></>
-}
-
 function AssistantPage({ onNotice }) {
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([{ from: 'assistant', text: 'Hi! I can help with common questions about registration, grades, payment, and campus services.' }])
@@ -177,7 +171,7 @@ function AccountSettingsPage({ student, onNotice }) {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
-  const isStaff = ['admin', 'superadmin', 'teacher'].includes(student?.role)
+  const isStaff = ['admin', 'teacher'].includes(student?.role)
   const minimumLength = isStaff ? 12 : 10
   const updatePassword = async event => {
     event.preventDefault()
@@ -195,7 +189,7 @@ function AccountSettingsPage({ student, onNotice }) {
     } catch (saveError) { setError(saveError.message) }
     finally { setSaving(false) }
   }
-  return <><PageHeading eyebrow="ACCOUNT SECURITY" title="Account Settings" description="Update the password for your student portal account." /><Panel className="settings-panel"><div className="admin-panel-title"><span className="admin-panel-icon"><ShieldCheck size={17} /></span><div><h3>Change password</h3><p>Signed in as {student?.name} · {student?.role === 'superadmin' ? 'Superadmin' : student?.role === 'admin' ? 'Administrator' : student?.role === 'teacher' ? 'Teacher' : student?.studentId}</p></div></div><form className="admin-form" onSubmit={updatePassword}><label htmlFor="current-password-settings">Current password</label><input id="current-password-settings" required type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /><label htmlFor="new-password-settings">New password</label><input id="new-password-settings" required minLength={minimumLength} type="password" autoComplete="new-password" placeholder={`At least ${minimumLength} characters`} value={newPassword} onChange={event => setNewPassword(event.target.value)} />{error && <div className="admin-error" role="alert">{error}</div>}{saved && <div className="password-saved"><Check size={14} /> Password updated successfully.</div>}<button className="login-submit" disabled={saving}>{saving ? 'Updating...' : 'Update password'} {!saving && <ArrowRight size={15} />}</button></form></Panel></>
+  return <><PageHeading eyebrow="ACCOUNT SECURITY" title="Account Settings" description="Update the password for your student portal account." /><Panel className="settings-panel"><div className="admin-panel-title"><span className="admin-panel-icon"><ShieldCheck size={17} /></span><div><h3>Change password</h3><p>Signed in as {student?.name} · {student?.role === 'admin' ? 'Administrator' : student?.role === 'teacher' ? 'Teacher' : student?.studentId}</p></div></div><form className="admin-form" onSubmit={updatePassword}><label htmlFor="current-password-settings">Current password</label><input id="current-password-settings" required type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /><label htmlFor="new-password-settings">New password</label><input id="new-password-settings" required minLength={minimumLength} type="password" autoComplete="new-password" placeholder={`At least ${minimumLength} characters`} value={newPassword} onChange={event => setNewPassword(event.target.value)} />{error && <div className="admin-error" role="alert">{error}</div>}{saved && <div className="password-saved"><Check size={14} /> Password updated successfully.</div>}<button className="login-submit" disabled={saving}>{saving ? 'Updating...' : 'Update password'} {!saving && <ArrowRight size={15} />}</button></form></Panel></>
 }
 
 export default function PortalPage({ active, student, onNotice }) {
@@ -208,7 +202,6 @@ export default function PortalPage({ active, student, onNotice }) {
     'Student Ledger': <LedgerPage onNotice={onNotice} />,
     'Online Registration': <RegistrationPage onNotice={onNotice} />,
     'Online Payment': <PaymentPage onNotice={onNotice} />,
-    'WiFi Access': <WifiPage onNotice={onNotice} />,
     'Virtual Assistant': <AssistantPage />,
     'Community & Services': <ServicesPage onNotice={onNotice} />,
     'BSED Majors': <MajorsPage />,

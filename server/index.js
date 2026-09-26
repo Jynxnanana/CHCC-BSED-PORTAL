@@ -76,8 +76,7 @@ function requireRoles(roles) {
   }
 }
 
-const requireAdmin = requireRoles(['admin', 'superadmin'])
-const requireSuperadmin = requireRoles(['superadmin'])
+const requireAdmin = requireRoles(['admin'])
 const requireTeacher = requireRoles(['teacher'])
 
 app.get('/api/health', async (_req, res) => {
@@ -116,7 +115,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = newSessionToken()
     const expiresAt = new Date(Date.now() + sessionDurationMs)
-    const role = admin ? (admin.role === 'superadmin' ? 'superadmin' : 'admin') : teacher ? 'teacher' : 'student'
+    const role = admin ? 'admin' : teacher ? 'teacher' : 'student'
     await sessions.insertOne({ tokenHash: hashSession(token), studentId: account.studentId, role, expiresAt, createdAt: new Date() })
     setSessionCookie(res, token)
     res.json({ student: publicStudent({ ...account, role }) })
@@ -132,7 +131,7 @@ app.get('/api/auth/me', async (req, res) => {
   try {
     const session = await sessions.findOne({ tokenHash: hashSession(token), expiresAt: { $gt: new Date() } })
     if (!session) { clearSessionCookie(res); return res.status(401).json({ message: 'Sign in to continue.' }) }
-    const collection = ['admin', 'superadmin'].includes(session.role) ? admins : session.role === 'teacher' ? teachers : students
+    const collection = session.role === 'admin' ? admins : session.role === 'teacher' ? teachers : students
     const account = await collection.findOne({ studentId: session.studentId }, { projection: { _id: 0, studentId: 1, name: 1, major: 1, role: 1 } })
     if (!account) { await sessions.deleteOne({ _id: session._id }); clearSessionCookie(res); return res.status(401).json({ message: 'Sign in to continue.' }) }
     res.json({ student: publicStudent({ ...account, role: session.role || 'student' }) })
@@ -157,10 +156,10 @@ app.post('/api/auth/password', async (req, res) => {
   try {
     const session = await sessions.findOne({ tokenHash: hashSession(token), expiresAt: { $gt: new Date() } })
     if (!session) return res.status(401).json({ message: 'Sign in to continue.' })
-    const collection = ['admin', 'superadmin'].includes(session.role) ? admins : session.role === 'teacher' ? teachers : students
+    const collection = session.role === 'admin' ? admins : session.role === 'teacher' ? teachers : students
     const account = await collection.findOne({ studentId: session.studentId })
     if (!account || !(await verifyPassword(currentPassword, account))) return res.status(401).json({ message: 'Current password is incorrect.' })
-    const minimumLength = ['admin', 'superadmin', 'teacher'].includes(session.role) ? 12 : 10
+    const minimumLength = ['admin', 'teacher'].includes(session.role) ? 12 : 10
     if (newPassword.length < minimumLength) return res.status(400).json({ message: `Use at least ${minimumLength} characters for the new password.` })
     const credentials = await hashPassword(newPassword)
     await collection.updateOne({ _id: account._id }, { $set: credentials, passwordChangedAt: new Date() })
@@ -205,37 +204,7 @@ app.post('/api/admin/students', requireAdmin, async (req, res) => {
   }
 })
 
-app.get('/api/superadmin/admins', requireSuperadmin, async (_req, res) => {
-  try {
-    const records = await admins.find({}, { projection: { _id: 0, studentId: 1, username: 1, name: 1, role: 1, createdAt: 1 } }).sort({ name: 1 }).toArray()
-    res.json({ admins: records })
-  } catch {
-    res.status(503).json({ message: 'Could not load admin accounts.' })
-  }
-})
-
-app.post('/api/superadmin/admins', requireSuperadmin, async (req, res) => {
-  const studentId = String(req.body?.studentId || '')
-  const username = String(req.body?.username || '').trim().toLowerCase()
-  const name = String(req.body?.name || '').trim()
-  const password = String(req.body?.password || '')
-  if (!/^\d{8}$/.test(studentId) || !/^[a-z][a-z0-9._-]{2,31}$/.test(username) || name.length < 2 || password.length < 12) {
-    return res.status(400).json({ message: 'Enter an 8-digit staff ID, valid username, full name, and password with at least 12 characters.' })
-  }
-  try {
-    if (await students.findOne({ studentId })) return res.status(409).json({ message: 'That ID already belongs to a student.' })
-    if (await admins.findOne({ $or: [{ studentId }, { username }] }) || await teachers.findOne({ $or: [{ studentId }, { username }] })) return res.status(409).json({ message: 'That staff ID or username is already in use.' })
-    const credentials = await hashPassword(password)
-    const record = { studentId, username, name, role: 'admin', ...credentials, createdAt: new Date() }
-    await admins.insertOne(record)
-    res.status(201).json({ admin: { studentId, username, name, role: 'admin' } })
-  } catch (error) {
-    if (error.code === 11000) return res.status(409).json({ message: 'That staff ID or username is already in use.' })
-    res.status(503).json({ message: 'Could not create the admin account.' })
-  }
-})
-
-app.get('/api/superadmin/teachers', requireSuperadmin, async (_req, res) => {
+app.get('/api/admin/teachers', requireAdmin, async (_req, res) => {
   try {
     const records = await teachers.find({}, { projection: { _id: 0, studentId: 1, username: 1, name: 1, major: 1, createdAt: 1 } }).sort({ name: 1 }).toArray()
     res.json({ teachers: records })
@@ -244,7 +213,7 @@ app.get('/api/superadmin/teachers', requireSuperadmin, async (_req, res) => {
   }
 })
 
-app.post('/api/superadmin/teachers', requireSuperadmin, async (req, res) => {
+app.post('/api/admin/teachers', requireAdmin, async (req, res) => {
   const studentId = String(req.body?.studentId || '')
   const username = String(req.body?.username || '').trim().toLowerCase()
   const name = String(req.body?.name || '').trim()
@@ -285,6 +254,9 @@ app.get('*', (req, res, next) => {
 
 async function start() {
   await client.connect()
+  // Upgrade existing installations: the former superadmin now has ordinary admin access.
+  await admins.updateMany({ role: 'superadmin' }, { $set: { role: 'admin' } })
+  await sessions.updateMany({ role: 'superadmin' }, { $set: { role: 'admin' } })
   await students.createIndex({ studentId: 1 }, { unique: true })
   await admins.createIndex({ studentId: 1 }, { unique: true })
   await admins.createIndex({ username: 1 }, { unique: true, sparse: true })

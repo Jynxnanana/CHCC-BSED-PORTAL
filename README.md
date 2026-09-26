@@ -38,7 +38,7 @@ npm run create:admin -- 60000001 "Portal Administrator"
 
 The admin password must be at least 12 characters. To seed an admin account, set `DEFAULT_ADMIN_PASSWORD` to a private value of at least 12 characters, then run `npm run seed:default-admin`. It creates or resets the username `admin` in the configured MongoDB.
 
-To create or reset the superadmin account, set `SUPERADMIN_PASSWORD` to a private value of at least 12 characters, then run `npm run seed:default-superadmin`. It creates or resets username `superadmin`. The superadmin can create admin accounts from **Admin Accounts**, teacher accounts from **Teacher Accounts**, and student accounts from **Students**. Teachers sign in with their username and can view the roster for their assigned BSED major. Admin accounts can create student accounts. Keep staff passwords private.
+The administrator can create student accounts from **Students** and teacher accounts from **Teacher Accounts**. Teachers sign in with their username and can view the roster for their assigned BSED major. Keep staff passwords private.
 
 ### Open the portal on a phone over Wi-Fi
 
@@ -49,25 +49,25 @@ Connect the computer and phone to the same Wi-Fi network. Start MongoDB, then op
 The Express service serves the built Vite app, so one Render web service can host both the portal and API.
 
 1. Create a MongoDB Atlas cluster and a database user with a strong password. Add your computer's current public IP to the Atlas project's IP access list for the one-time seed, and add the Render service's outbound IP addresses for runtime access. Atlas only accepts connections from listed addresses. If you use a broad allowlist for a short class demo, use a strong database-only user and sample data; do not store real student records.
-2. Seed a superadmin in that Atlas database from your computer. Copy the Atlas connection string and run these PowerShell commands in the project folder, replacing the values privately:
+2. Seed the administrator in that Atlas database from your computer. Copy the Atlas connection string and run these PowerShell commands in the project folder, replacing the values privately:
 
    ```powershell
    $env:MONGODB_URI = "mongodb+srv://DB_USER:DB_PASSWORD@YOUR_CLUSTER/bsed_portal?retryWrites=true&w=majority"
-   $env:SUPERADMIN_PASSWORD = "choose-a-private-password-of-12-or-more-characters"
-   npm run seed:default-superadmin
-   Remove-Item Env:SUPERADMIN_PASSWORD
+   $env:DEFAULT_ADMIN_PASSWORD = "choose-a-private-password-of-12-or-more-characters"
+   npm run seed:default-admin
+   Remove-Item Env:DEFAULT_ADMIN_PASSWORD
    Remove-Item Env:MONGODB_URI
    ```
 
    URL-encode special characters in the database username or password within the connection string. Do not put this URI or password in GitHub.
 3. In Render, create a **Web Service** connected to `Jynxnanana/CHCC-BSED-PORTAL`, branch `main`. Set the build command to `npm ci && npm run build` and the start command to `npm run server`. Set health check path to `/api/health`.
 4. In the Render service's environment variables, add `MONGODB_URI` with the Atlas connection string and `NODE_ENV` with `production`. Render provides the `PORT` value automatically.
-5. Deploy. Share the service's `onrender.com` URL with your groupmates. Sign in as `superadmin` using the private password set in step 2, then create student accounts from **Students**. Give each classmate their own student ID and initial password.
+5. Deploy. Share the service's `onrender.com` URL with your groupmates. Sign in as `admin` using the private password set in step 2, then create student and teacher accounts from their respective administration pages.
 
 Render deploys a new version when changes are pushed to the connected GitHub branch. Free service plans may sleep or have usage limits; check the plan details in Render before relying on it for a presentation.
 
 ## Portal modules
 
-The signed-in portal includes the student overview, weekly schedule, enrolled subjects, enrollment history, report of grades, curriculum evaluation, student ledger, registration draft, payment preview, sample WiFi code generator, FAQ assistant, community forum, library resources, clinic information, notifications, and BSED major directory. Schedule, grade, and ledger views can print or export CSV. The overview includes sample subject-status and GWA-trend charts.
+The signed-in portal includes the student overview, weekly schedule, enrolled subjects, enrollment history, report of grades, curriculum evaluation, student ledger, registration draft, payment preview, FAQ assistant, community forum, library resources, clinic information, notifications, and BSED major directory. Schedule, grade, and ledger views can print or export CSV. The overview includes sample subject-status and GWA-trend charts.
 
-Academic profile, curriculum, grade, attendance, ledger, announcement, and event details are sample data; they are not yet loaded from each student record. Online registration saves only an in-page draft. Payment does not collect money, and generated WiFi codes do not authenticate with a campus network. Connect the school's Registrar, cashier/payment provider, and network system before using those flows operationally.
+Academic profile, curriculum, grade, attendance, ledger, announcement, and event details are sample data; they are not yet loaded from each student record. Online registration saves only an in-page draft. Payment does not collect money. Connect the school's Registrar, cashier/payment provider, and network system before using those flows operationally.
