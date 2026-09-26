@@ -1,62 +1,61 @@
-/* Slow moving color fields make the login backdrop visibly alive without
-   competing with the form. */
+/* Calm, low-contrast ambient light for a login screen that stays comfortable
+   during long viewing sessions. The motion is deliberately slow and subtle. */
 .login-shell {
   background-image:
-    radial-gradient(ellipse at 12% 18%, #c5d8ff 0, transparent 38%),
-    radial-gradient(ellipse at 88% 82%, #ffe5a8 0, transparent 34%),
-    radial-gradient(ellipse at 52% 40%, #c8d8ff 0, #dfe8ff80 34%, transparent 68%),
-    radial-gradient(ellipse at 48% 78%, #ffedc780 0, transparent 48%),
-    linear-gradient(125deg, #f7f9ff, #f1f5fc 52%, #fffaf0);
-  background-size: 150% 150%, 150% 150%, 135% 135%, 135% 135%, 100% 100%;
-  animation: login-color-drift 13s ease-in-out infinite alternate;
+    radial-gradient(ellipse at 16% 22%, rgba(114, 154, 207, 0.16) 0, transparent 42%),
+    radial-gradient(ellipse at 84% 78%, rgba(213, 177, 105, 0.13) 0, transparent 40%),
+    linear-gradient(135deg, #f4f7fb 0%, #eef3f9 54%, #f8f5ed 100%);
+  background-size: 150% 150%, 150% 150%, 100% 100%;
+  animation: login-color-drift 38s ease-in-out infinite alternate;
 }
 
 .login-page::before,
 .login-page::after {
   will-change: transform;
+  opacity: 0.42;
 }
 
 .login-page::before {
-  animation: login-orbit-left 11s ease-in-out infinite alternate;
+  animation: login-orbit-left 42s ease-in-out infinite alternate;
 }
 
 .login-page::after {
-  animation: login-orbit-right 14s ease-in-out infinite alternate;
+  opacity: 0.34;
+  animation: login-orbit-right 48s ease-in-out infinite alternate;
 }
 
 @keyframes login-color-drift {
-  0% { background-position: 0% 0%, 100% 100%, 0% 0%, 100% 100%, center; }
-  50% { background-position: 45% 30%, 55% 70%, 55% 50%, 40% 60%, center; }
-  100% { background-position: 100% 70%, 0% 15%, 100% 100%, 0% 0%, center; }
+  0% { background-position: 20% 20%, 80% 80%, center; }
+  100% { background-position: 55% 42%, 45% 58%, center; }
 }
 
 @keyframes login-orbit-left {
-  from { transform: translateY(-48%) translateX(-28px) scale(.96); }
-  to { transform: translateY(-42%) translateX(38px) scale(1.04); }
+  from { transform: translateY(-48%) translateX(-10px); }
+  to { transform: translateY(-45%) translateX(10px); }
 }
 
 @keyframes login-orbit-right {
-  from { transform: translate(-35px, -24px) scale(1.04); }
-  to { transform: translate(16px, 30px) scale(.96); }
+  from { transform: translate(-10px, -12px); }
+  to { transform: translate(10px, 12px); }
 }
 
 .theme-dark.login-shell {
   background-image:
-    radial-gradient(ellipse at 12% 18%, #263c67 0, transparent 40%),
-    radial-gradient(ellipse at 88% 82%, #55421e 0, transparent 36%),
-    radial-gradient(ellipse at 52% 40%, #294a7d 0, #1d345580 38%, transparent 70%),
-    radial-gradient(ellipse at 48% 78%, #57431e90 0, transparent 50%),
-    linear-gradient(125deg, #111a2b, #0e1421 55%, #171525);
+    radial-gradient(ellipse at 16% 22%, rgba(72, 101, 151, 0.26) 0, transparent 44%),
+    radial-gradient(ellipse at 84% 78%, rgba(143, 112, 58, 0.16) 0, transparent 42%),
+    linear-gradient(135deg, #111a29 0%, #111725 56%, #191922 100%);
 }
 
 .theme-dark .login-page::before {
-  border-color: #354d78;
-  box-shadow: 0 0 0 24px #24395750, 0 0 0 48px #1c2e4a45;
+  border-color: #35445f;
+  box-shadow: 0 0 0 24px rgba(36, 57, 87, 0.24), 0 0 0 48px rgba(28, 46, 74, 0.18);
+  opacity: 0.34;
 }
 
 .theme-dark .login-page::after {
-  border-color: #6a5329;
-  box-shadow: 0 0 0 24px #47381f55, 0 0 0 48px #352a1d45;
+  border-color: #66563a;
+  box-shadow: 0 0 0 24px rgba(71, 56, 31, 0.22), 0 0 0 48px rgba(53, 42, 29, 0.16);
+  opacity: 0.28;
 }
 
 @media (prefers-reduced-motion: reduce) {
