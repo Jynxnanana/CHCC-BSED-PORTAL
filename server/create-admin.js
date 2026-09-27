@@ -3,7 +3,7 @@ import { MongoClient } from 'mongodb'
 import { hashPassword } from './auth.js'
 
 const [studentId, name] = process.argv.slice(2)
-if (!/^\d{8}$/.test(studentId || '') || !name?.trim()) {
+if (!/^\d{8}$/.test(studentId || '') || !name?.trim() || name.trim().length > 100) {
   console.error('Usage: npm run create:admin -- <8-digit-id> "<admin name>"')
   process.exit(1)
 }
@@ -33,7 +33,8 @@ try {
   if (password.length < 12) throw new Error('Use an admin password with at least 12 characters.')
   await client.connect()
   const database = client.db('bsed_portal')
-  if (await database.collection('students').findOne({ studentId })) throw new Error(`Student ID ${studentId} already belongs to a student account.`)
+  if (await database.collection('students').findOne({ studentId }) || await database.collection('teachers').findOne({ studentId })) throw new Error(`Student ID ${studentId} already belongs to another account.`)
+  if (await database.collection('admins').findOne({ studentId })) throw new Error(`Student ID ${studentId} already has an administrator account.`)
   const credentials = await hashPassword(password)
   await database.collection('admins').insertOne({ studentId, name: name.trim(), role: 'admin', ...credentials, createdAt: new Date() })
   console.log(`Created admin account ${studentId}.`)

@@ -5,7 +5,7 @@ import { hashPassword } from './auth.js'
 const [studentId, name, major] = process.argv.slice(2)
 const validMajors = ['English', 'Filipino', 'Mathematics', 'Science', 'Social Studies', 'MAPEH']
 
-if (!/^\d{8}$/.test(studentId || '') || !name?.trim() || !validMajors.includes(major)) {
+if (!/^\d{8}$/.test(studentId || '') || !name?.trim() || name.trim().length > 100 || !validMajors.includes(major)) {
   console.error('Usage: npm run create:student -- <8-digit-id> "<student name>" "<major>"')
   console.error(`Majors: ${validMajors.join(', ')}`)
   process.exit(1)
@@ -43,8 +43,9 @@ try {
   const password = await readHidden('Set a password (at least 10 characters): ')
   if (password.length < 10) throw new Error('Use a password with at least 10 characters.')
   await client.connect()
-  const students = client.db('bsed_portal').collection('students')
-  if (await client.db('bsed_portal').collection('admins').findOne({ studentId })) throw new Error(`Student ID ${studentId} already belongs to an admin account.`)
+  const database = client.db('bsed_portal')
+  if (await database.collection('admins').findOne({ studentId }) || await database.collection('teachers').findOne({ studentId })) throw new Error(`Student ID ${studentId} already belongs to a staff account.`)
+  const students = database.collection('students')
   const credentials = await hashPassword(password)
   await students.insertOne({ studentId, name: name.trim(), major, ...credentials, createdAt: new Date() })
   console.log(`Created student account ${studentId} (${major}).`)

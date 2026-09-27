@@ -21,6 +21,7 @@ try {
     console.log('Updated the admin account password from DEFAULT_ADMIN_PASSWORD.')
   } else {
     if (await students.findOne({ studentId })) throw new Error(`Student ID ${studentId} is already assigned to a student.`)
+    if (await client.db('bsed_portal').collection('teachers').findOne({ studentId })) throw new Error(`Student ID ${studentId} is already assigned to a teacher.`)
     if (await admins.findOne({ studentId })) throw new Error(`Student ID ${studentId} is already assigned to another admin.`)
     await admins.insertOne({ studentId, username, name: 'Portal Administrator', role: 'admin', ...credentials, createdAt: new Date() })
     console.log('Created local default admin account: username admin.')

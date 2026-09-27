@@ -12,13 +12,24 @@ A starter dashboard for Bachelor of Secondary Education students, with a focus o
 
 ## Run locally
 
-1. Install Node.js 20 or newer and MongoDB Community Server.
+1. Install Node.js 20 or newer and MongoDB Community Server. Make sure the **MongoDB** Windows service is running.
 2. Run `npm install`.
-3. Copy `.env.example` to `.env` and set `MONGODB_URI` if MongoDB is not using its local default.
-4. Start the API with `npm run server`.
-5. In another terminal, start the portal with `npm run dev`.
+3. In PowerShell, copy `.env.example` to `.env` if you do not already have one:
 
-The web app is served by Vite. The API exposes `GET /api/health`, `GET /api/majors`, and student sign-in/session endpoints on port 4000. Vite proxies `/api` requests to the API during development.
+   ```powershell
+   if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+   ```
+4. In PowerShell, prepare the local database and admin account:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\server\use-local-database.ps1
+   ```
+
+   Enter a private admin password of at least 12 characters when prompted. This switches `.env` to the local MongoDB database at `127.0.0.1:27017`; local records are separate from Atlas.
+5. Start the API with `npm run server`.
+6. In another terminal, start the portal with `npm run dev`, then open the local URL Vite prints (usually `http://localhost:5173`). Sign in as `admin` with the password you entered.
+
+The web app is served by Vite. The API exposes health, sign-in/session, account administration, teacher roster/gradebook, and student grade report endpoints on port 4000. Vite proxies `/api` requests to the API during development.
 
 ## Create a student account
 
@@ -38,7 +49,9 @@ npm run create:admin -- 60000001 "Portal Administrator"
 
 The admin password must be at least 12 characters. To seed an admin account, set `DEFAULT_ADMIN_PASSWORD` to a private value of at least 12 characters, then run `npm run seed:default-admin`. It creates or resets the username `admin` in the configured MongoDB.
 
-The administrator can create student accounts from **Students** and teacher accounts from **Teacher Accounts**. Teachers sign in with their username and can view the roster for their assigned BSED major. Keep staff passwords private.
+The administrator can create, view, edit, and delete student accounts from **Students**, teacher accounts from **Teacher Accounts**, and official class schedule records from **Class Schedules**. Add each student's section in their account, then assign each class to the matching BSED major and section and, when known, a teacher. Students only see their section's classes (plus classes marked for all sections). Teachers sign in with their username, search and export their major roster, view assigned classes, record attendance, and enter grades only for students in their assigned classes. New grades remain hidden from students until approved in **Grade Approvals**. Teachers can publish major-specific updates in **Major Advisories**. Keep staff passwords private and have the Registrar verify all academic records before treating them as official.
+
+The administrator can add verified degree requirements under **Curriculum Catalog**, review student requests under **Enrollment Review**, post cashier-verified charges and payments under **Student Ledger Admin**, and publish campus dates under **Campus Events**. A payment entry is a manual cashier record and requires a receipt reference; the portal does not collect money. Students can submit a request from **Online Registration** using available schedules, see its review state in **Enrollment History**, and view posted attendance, approved grades, curriculum progress, ledger entries, and campus events.
 
 ### Open the portal on a phone over Wi-Fi
 
@@ -60,7 +73,7 @@ The Express service serves the built Vite app, so one Render web service can hos
    ```
 
    URL-encode special characters in the database username or password within the connection string. Do not put this URI or password in GitHub.
-3. In Render, create a **Web Service** connected to `Jynxnanana/CHCC-BSED-PORTAL`, branch `main`. Set the build command to `npm ci && npm run build` and the start command to `npm run server`. Set health check path to `/api/health`.
+3. In Render, create a **Web Service** connected to `Jynxnanana/CHCC-BSED-PORTAL`, branch `main`. Set the build command to `npm ci --include=dev && npm run build` and the start command to `npm run server`. Set health check path to `/api/health`.
 4. In the Render service's environment variables, add `MONGODB_URI` with the Atlas connection string and `NODE_ENV` with `production`. Render provides the `PORT` value automatically.
 5. Deploy. Share the service's `onrender.com` URL with your groupmates. Sign in as `admin` using the private password set in step 2, then create student and teacher accounts from their respective administration pages.
 
@@ -68,6 +81,6 @@ Render deploys a new version when changes are pushed to the connected GitHub bra
 
 ## Portal modules
 
-The signed-in portal includes the student overview, weekly schedule, enrolled subjects, enrollment history, report of grades, curriculum evaluation, student ledger, registration draft, payment preview, FAQ assistant, community forum, library resources, clinic information, notifications, and BSED major directory. Schedule, grade, and ledger views can print or export CSV. The overview includes sample subject-status and GWA-trend charts.
+The signed-in portal includes the student overview, weekly schedule, enrolled subjects, enrollment history, attendance records, report of grades, curriculum evaluation, student ledger, registration requests, campus events, FAQ assistant, student community, library resources, clinic information, notifications, and BSED major directory. Teachers can record class attendance and grades for assigned sections. Schedule, attendance, grade, and ledger views can print or export CSV.
 
-Academic profile, curriculum, grade, attendance, ledger, announcement, and event details are sample data; they are not yet loaded from each student record. Online registration saves only an in-page draft. Payment does not collect money. Connect the school's Registrar, cashier/payment provider, and network system before using those flows operationally.
+Academic schedules, curriculum requirements, registration decisions, attendance, grades, ledger entries, student posts, and events are stored in MongoDB. They remain empty until authorized staff enter verified information. Student-submitted registration requests require administrator/Registrar review; teacher-entered grades require administrator/Registrar approval. Cashier staff must verify payments before recording them. No payment gateway, student information system, official library portal, or school notification provider is connected. The portal is not a substitute for those systems or their official records.

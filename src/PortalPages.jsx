@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  ArrowDownToLine, ArrowRight, BookOpen, Bot, CalendarDays, Check, ChevronDown,
+  ArrowDownToLine, ArrowRight, BellRing, BookOpen, Bot, CalendarDays, Check, ChevronDown,
   Clock3, CreditCard, Download, FileText, HeartPulse, Library, MessageCircle,
   Printer, Receipt, Search, Send, ShieldCheck,
 } from 'lucide-react'
@@ -59,41 +59,87 @@ function DataTable({ headings, rows }) {
 }
 
 export function DashboardDetails({ student }) {
-  const gwaByTerm = [1.82, 1.71, 1.65, 1.58, 1.52, 1.48]
+  const [data, setData] = useState({ grades: [], subjects: [], attendance: [], schedules: [], enrollments: [], events: [] })
+  const [loading, setLoading] = useState(true)
   const todayName = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date())
-  const todaySubjects = subjects.filter(item => item.day === todayName && item.status !== 'Failed')
-  const max = Math.max(...gwaByTerm)
-  const points = gwaByTerm.map((gwa, index) => `${30 + index * 86},${115 - ((max - gwa) / 0.5) * 75}`).join(' ')
-  const subjectSegments = 'conic-gradient(#55b784 0 81.8%, #ef827f 81.8% 86.3%, #8592de 86.3% 93.1%, #f0b761 93.1% 100%)'
+  useEffect(() => {
+    Promise.all(['/api/student/grades', '/api/student/evaluation', '/api/student/attendance', '/api/student/schedules', '/api/student/enrollments', '/api/student/events'].map(url => fetch(url, { credentials: 'include' }).then(response => response.ok ? response.json() : {})))
+      .then(([grades, subjects, attendanceRecords, schedules, enrollments, events]) => setData({ grades: grades.grades || [], subjects: subjects.subjects || [], attendance: attendanceRecords.records || [], schedules: schedules.schedules || [], enrollments: enrollments.enrollments || [], events: events.events || [] }))
+      .finally(() => setLoading(false))
+  }, [])
+  const passed = data.subjects.filter(item => ['Passed', 'Credited'].includes(item.status)).length
+  const failed = data.subjects.filter(item => item.status === 'Failed').length
+  const attendanceRate = data.attendance.length ? Math.round(data.attendance.filter(item => ['Present', 'Late', 'Excused'].includes(item.status)).length / data.attendance.length * 100) : null
+  const units = data.enrollments.find(item => item.status === 'Approved')?.units || 0
+  const gwaUnits = data.grades.reduce((sum, item) => sum + Number(item.units || 0), 0)
+  const gwa = gwaUnits ? (data.grades.reduce((sum, item) => sum + Number(item.grade) * Number(item.units || 0), 0) / gwaUnits).toFixed(2) : '—'
+  const todayClasses = data.schedules.filter(item => item.day === todayName)
   return <>
-    <div className="student-overview-grid"><Panel className="student-profile-card"><div className="student-profile-top"><div className="student-profile-avatar">{student?.name?.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'BS'}</div><div><span className="section-kicker">STUDENT PROFILE</span><h3>{student?.name || 'BSED Student'}</h3><p>{student?.studentId || '61212024'}</p></div><StatusPill value="Enrolled" /></div><div className="profile-facts"><div><span>PROGRAM</span><strong>Bachelor of Secondary Education</strong></div><div><span>MAJOR</span><strong>{student?.major || 'English'}</strong></div><div><span>YEAR LEVEL</span><strong>3rd Year</strong></div><div><span>ACADEMIC YEAR</span><strong>2026–2027</strong></div></div></Panel><Panel className="gwa-card"><div className="metric-label">CUMULATIVE GWA</div><div className="gwa-number">1.58 <span>Very Good</span></div><div className="gwa-subline">Across 5 completed semesters</div><div className="gwa-chart"><svg viewBox="0 0 500 145" role="img" aria-label="GWA improved from 1.82 to 1.48 over six semesters"><line x1="25" y1="115" x2="480" y2="115" /><line x1="25" y1="75" x2="480" y2="75" /><line x1="25" y1="35" x2="480" y2="35" /><polyline points={points} /><circle cx="460" cy={points.split(' ').at(-1).split(',')[1]} r="5" /><text x="25" y="138">1st Sem</text><text x="194" y="138">1st Sem</text><text x="370" y="138">1st Sem</text></svg></div><div className="gwa-legend"><span>Grade trend per semester</span><strong>Improving ↗</strong></div></Panel></div>
-    <div className="student-metrics-grid"><Panel><div className="metric-label">SEMESTERS COMPLETED</div><div className="small-metric">5 <span>of 8</span></div><div className="mini-track"><i style={{ width: '62.5%' }} /></div><span className="metric-foot">On track for graduation</span></Panel><Panel><div className="metric-label">SUBJECTS PASSED</div><div className="small-metric green-text">36 <span>subjects</span></div><span className="metric-foot">Across all completed terms</span></Panel><Panel><div className="metric-label">SUBJECTS FAILED</div><div className="small-metric red-text">2 <span>subjects</span></div><span className="metric-foot">Available for retake</span></Panel><Panel><div className="metric-label">CURRENT LOAD</div><div className="small-metric">21 <span>units</span></div><span className="metric-foot">6 enrolled subjects</span></Panel></div>
-    <div className="dashboard-lower-grid"><Panel><PageHeading eyebrow="ACADEMIC SNAPSHOT" title="Subject status" description="Your overall curriculum progress." /><div className="subject-status-chart"><div className="pie-chart" style={{ background: subjectSegments }}><div><strong>44</strong><span>subjects</span></div></div><div className="pie-legend"><span><i className="legend-green" />Passed <strong>36</strong></span><span><i className="legend-red" />Failed <strong>2</strong></span><span><i className="legend-blue" />Credited <strong>3</strong></span><span><i className="legend-amber" />Incomplete <strong>3</strong></span></div></div></Panel><Panel><PageHeading eyebrow={`TODAY · ${todayName.toUpperCase()}`} title="Schedule for today" /><div className="today-classes">{todaySubjects.map(item => <div className="today-class" key={item.code}><time>{item.time}</time><div><strong>{item.name}</strong><span>{item.code} · {item.room}</span></div></div>)}{todayName === 'Thursday' && <div className="today-class"><time>1:00–2:30 PM</time><div><strong>Teaching Internship</strong><span>EDUC 301 · Lab 1</span></div></div>}{todaySubjects.length === 0 && todayName !== 'Thursday' && <div className="today-empty">No classes are scheduled for today.</div>}</div></Panel></div>
+    <div className="student-overview-grid"><Panel className="student-profile-card"><div className="student-profile-top"><div className="student-profile-avatar">{student?.name?.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'BS'}</div><div><span className="section-kicker">STUDENT PROFILE</span><h3>{student?.name || 'BSED Student'}</h3><p>{student?.studentId}</p></div></div><div className="profile-facts"><div><span>PROGRAM</span><strong>Bachelor of Secondary Education</strong></div><div><span>MAJOR</span><strong>{student?.major}</strong></div><div><span>SECTION</span><strong>{student?.section || 'Not assigned'}</strong></div></div></Panel><Panel className="gwa-card"><div className="metric-label">APPROVED GWA</div><div className="gwa-number">{loading ? '…' : gwa}</div><div className="gwa-subline">Calculated from Registrar-approved grades</div><span className="gwa-subline">Open Report of Grades for details.</span></Panel></div>
+    <div className="student-metrics-grid"><Panel><div className="metric-label">SUBJECTS PASSED</div><div className="small-metric green-text">{loading ? '…' : passed}</div><span className="metric-foot">From official curriculum records</span></Panel><Panel><div className="metric-label">SUBJECTS FAILED</div><div className="small-metric red-text">{loading ? '…' : failed}</div><span className="metric-foot">Review with your academic adviser</span></Panel><Panel><div className="metric-label">APPROVED LOAD</div><div className="small-metric">{loading ? '…' : units} <span>units</span></div><span className="metric-foot">Registrar-approved registration</span></Panel><Panel><div className="metric-label">ATTENDANCE RATE</div><div className="small-metric">{loading ? '…' : attendanceRate === null ? '—' : `${attendanceRate}%`}</div><span className="metric-foot">Based on teacher-submitted records</span></Panel></div>
+    <div className="dashboard-lower-grid"><Panel><PageHeading eyebrow="UPCOMING CAMPUS EVENTS" title="School calendar" description="Events posted by the administrator." />{loading ? <div className="feature-empty">Loading events...</div> : data.events.length ? data.events.slice(0, 4).map(item => <div className="teacher-advisory-item" key={`${item.date}-${item.title}`}><div><strong>{item.title}</strong><span>{item.date} · {item.location}</span></div></div>) : <div className="feature-empty">No upcoming events posted.</div>}</Panel><Panel><PageHeading eyebrow={`TODAY · ${todayName.toUpperCase()}`} title="Your classes today" description="From your assigned official schedule." />{loading ? <div className="feature-empty">Loading schedule...</div> : todayClasses.length ? todayClasses.map(item => <div className="today-class" key={item.scheduleId}><time>{item.time}</time><div><strong>{item.subject}</strong><span>{item.courseCode} · {item.room}</span></div></div>) : <div className="feature-empty">No classes are listed for today.</div>}</Panel></div>
+  </>
+}
+function ClassSchedulePage({ student }) {
+  const [schedules, setSchedules] = useState([])
+  const [term, setTerm] = useState('')
+  const [day, setDay] = useState('All days')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    const endpoint = student?.role === 'teacher' ? '/api/teacher/schedules' : '/api/student/schedules'
+    fetch(endpoint, { credentials: 'include' })
+      .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load class schedules.'); setSchedules(result.schedules) })
+      .catch(loadError => setError(loadError.message))
+      .finally(() => setLoading(false))
+  }, [student?.role])
+  const availableTerms = [...new Set(schedules.map(item => item.term))]
+  const selectedTerm = availableTerms.includes(term) ? term : availableTerms[0] || ''
+  const rows = schedules.filter(item => item.term === selectedTerm && (day === 'All days' || item.day === day))
+  const filename = student?.role === 'teacher' ? 'my-teaching-schedule.csv' : 'class-schedule.csv'
+  return <><PageHeading eyebrow={student?.role === 'teacher' ? 'TEACHING · ASSIGNED CLASSES' : 'ACADEMICS · OFFICIAL SCHEDULE'} title={student?.role === 'teacher' ? 'My Schedule' : 'Class Schedule'} description={student?.role === 'teacher' ? 'Classes assigned to your teacher account.' : 'Official classes assigned to your BSED major.'} action={<PrintExport onExport={() => downloadCsv(filename, [['Term', 'Course code', 'Subject', 'Major', 'Section', 'Teacher', 'Day', 'Time', 'Room', 'Units'], ...rows.map(item => [item.term, item.courseCode, item.subject, item.major, item.section, item.teacherName, item.day, item.time, item.room, item.units])])} />} />
+    {loading ? <Panel><div className="feature-empty">Loading class schedules...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : schedules.length === 0 ? <Panel><div className="feature-empty"><CalendarDays size={22} /><strong>No class schedules have been assigned yet</strong><span>Ask the administrator or Registrar when the official schedule is available.</span></div></Panel> : <>
+      <Panel><div className="table-toolbar"><label>Academic term <select aria-label="Academic term" value={selectedTerm} onChange={event => setTerm(event.target.value)}>{availableTerms.map(value => <option key={value}>{value}</option>)}</select></label><label>Day <select value={day} onChange={event => setDay(event.target.value)}>{['All days', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(value => <option key={value}>{value}</option>)}</select></label></div><DataTable headings={['DAY', 'TIME', 'COURSE', 'SECTION', 'TEACHER', 'ROOM', 'UNITS']} rows={rows.map(item => [item.day, item.time, <><strong>{item.courseCode} · {item.subject}</strong><small className="table-subline">{item.term}</small></>, item.section || '—', item.teacherName || 'Unassigned', item.room, item.units])} /></Panel>
+      {rows.length === 0 && <div className="feature-empty">No classes match the selected day.</div>}
+    </>}
   </>
 }
 
-function ClassSchedulePage() {
-  const [day, setDay] = useState('All days')
-  const [term, setTerm] = useState(terms[0])
-  const rows = subjects.filter(item => item.status !== 'Failed' && (day === 'All days' || item.day === day))
-  return <><PageHeading eyebrow="ACADEMICS · TERM SCHEDULE" title="Class Schedule" description="View the weekly timetable by academic term, then print or export it." action={<PrintExport onExport={() => downloadCsv('class-schedule.csv', [['Term', term], ['Course code', 'Subject', 'Day', 'Time', 'Room'], ...rows.map(item => [item.code, item.name, item.day, item.time, item.room])])} />} /><Panel><div className="table-toolbar"><label>Academic term <select value={term} onChange={event => setTerm(event.target.value)}>{terms.map(value => <option key={value}>{value}</option>)}</select></label><label>Day <select value={day} onChange={event => setDay(event.target.value)}>{['All days', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(value => <option key={value}>{value}</option>)}</select></label></div><DataTable headings={['DAY', 'TIME', 'SUBJECT', 'ROOM', 'UNITS']} rows={rows.map(item => [item.day, item.time, <><strong>{item.name}</strong><small className="table-subline">{item.code}</small></>, item.room, item.units])} /></Panel><div className="feature-note"><CalendarDays size={15} /> Term selection uses sample timetable data until the Registrar schedule is connected.</div></>
-}
-
 function EnrolledSubjectsPage() {
-  return <><PageHeading eyebrow="ACADEMICS · 21 UNITS" title="Enrolled Subjects" description="Your registered subjects, class details, and online meeting links." /><Panel><DataTable headings={['SUBJECT', 'UNITS', 'SCHEDULE', 'ROOM', 'MS TEAMS']} rows={subjects.filter(item => item.status !== 'Failed').map(item => [<><strong>{item.name}</strong><small className="table-subline">{item.code}</small></>, item.units, `${item.day} · ${item.time}`, item.room, <a className="teams-link" href="https://teams.microsoft.com/" target="_blank" rel="noreferrer">Open Teams <ArrowRight size={13} /></a>])} /></Panel><div className="feature-note"><ShieldCheck size={16} /> Teams links are sample links; ask your instructor for the class-specific meeting URL.</div></>
+  const [subjects, setSubjects] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(() => { fetch('/api/student/enrolled-subjects', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load enrolled subjects.'); setSubjects(result.subjects) }).catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
+  return <><PageHeading eyebrow="ACADEMICS · APPROVED ENROLLMENT" title="Enrolled Subjects" description="Classes approved for your student account by the Registrar." action={<PrintExport onExport={() => downloadCsv('enrolled-subjects.csv', [['Term', 'Course code', 'Subject', 'Section', 'Units'], ...subjects.map(item => [item.term, item.courseCode, item.subject, item.section, item.units])])} />} />{loading ? <Panel><div className="feature-empty">Loading approved subjects...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : subjects.length === 0 ? <Panel><div className="feature-empty"><BookOpen size={22} /><strong>No subjects have been approved yet</strong><span>Submit a registration request and check Enrollment History for the Registrar decision.</span></div></Panel> : <Panel><DataTable headings={['COURSE', 'TERM', 'SECTION', 'UNITS']} rows={subjects.map(item => [<><strong>{item.courseCode} · {item.subject}</strong></>, item.term, item.section || '—', item.units])} /></Panel>}</>
 }
-
 function EnrollmentHistoryPage() {
-  return <><PageHeading eyebrow="ACADEMICS · REGISTRAR RECORDS" title="Enrollment History" description="Previous and current registration records for your student account." action={<PrintExport onExport={() => downloadCsv('enrollment-history.csv', [['Term', 'Registration ID', 'Date', 'Units', 'Status'], ...registrationHistory.map(item => [item.term, item.id, item.date, item.units, item.status])])} />} /><Panel><DataTable headings={['ACADEMIC TERM', 'REGISTRATION ID', 'REGISTRATION DATE', 'UNITS', 'STATUS']} rows={registrationHistory.map(item => [<strong>{item.term}</strong>, item.id, item.date, item.units, <StatusPill value={item.status} />])} /></Panel></>
+  return <><PageHeading eyebrow="ACADEMICS · REGISTRAR RECORDS" title="Enrollment History" description="Previous and current registration records for your student account." action={<PrintExport onExport={() => downloadCsv('enrollment-history.csv', [['Term', 'Registration ID', 'Date', 'Units', 'Status'], ...registrationHistory.map(item => [item.term, item.id, item.date, item.units, item.status])])} />} /><Panel><DataTable headings={['ACADEMIC TERM', 'REGISTRATION ID', 'REGISTRATION DATE', 'UNITS', 'STATUS']} rows={registrationHistory.map(item => [<strong>{item.term}</strong>, item.id, item.date, item.units, <StatusPill value={item.status} />])} /></Panel><div className="feature-note"><ShieldCheck size={16} /> Sample enrollment history for preview. Official registration records must come from the Registrar.</div></>
 }
 
 function GradesPage() {
-  const [term, setTerm] = useState(terms[0])
-  const rows = term === terms[0] ? subjects : subjects.slice(0, 4).map(item => ({ ...item, grade: item.grade === '5.00' ? '2.00' : item.grade, status: 'Passed' }))
-  const gwa = term === terms[0] ? '1.58' : '1.64'
-  return <><PageHeading eyebrow="ACADEMICS · OFFICIAL RECORD PREVIEW" title="Report of Grades" description="Review your grades by term, then print or export a copy." action={<PrintExport onExport={() => downloadCsv('report-of-grades.csv', [['Term', term], ['Course code', 'Subject', 'Units', 'Grade', 'Status'], ...rows.map(item => [item.code, item.name, item.units, item.grade, item.status])])} />} /><div className="term-picker"><CalendarDays size={16} /><select value={term} onChange={event => setTerm(event.target.value)}>{terms.map(value => <option key={value}>{value}</option>)}</select><span>Term GWA <strong>{gwa}</strong></span></div><Panel><DataTable headings={['COURSE CODE', 'SUBJECT', 'UNITS', 'FINAL GRADE', 'RESULT']} rows={rows.map(item => [item.code, item.name, item.units, item.grade, <StatusPill value={item.status} />])} /></Panel><p className="feature-note"><FileText size={15} /> Preview only. Request an official certified report from the Registrar.</p></>
+  const [grades, setGrades] = useState([])
+  const [term, setTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    fetch('/api/student/grades', { credentials: 'include' })
+      .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load your grades.'); setGrades(result.grades) })
+      .catch(loadError => setError(loadError.message))
+      .finally(() => setLoading(false))
+  }, [])
+  const termsWithGrades = [...new Set(grades.map(item => item.term))]
+  const selectedTerm = termsWithGrades.includes(term) ? term : termsWithGrades[0] || ''
+  const rows = grades.filter(item => item.term === selectedTerm)
+  const weightedUnits = rows.reduce((total, item) => total + item.units, 0)
+  const gwa = weightedUnits ? (rows.reduce((total, item) => total + Number(item.grade) * item.units, 0) / weightedUnits).toFixed(2) : '—'
+  return <><PageHeading eyebrow="ACADEMICS · SAVED RECORDS" title="Report of Grades" description="Review final grades recorded for your student account." action={<PrintExport onExport={() => downloadCsv('report-of-grades.csv', [['Term', selectedTerm], ['Course code', 'Subject', 'Units', 'Grade', 'Status'], ...rows.map(item => [item.courseCode, item.subject, item.units, item.grade, item.status])])} />} />
+    {loading ? <Panel><div className="feature-empty">Loading your grades...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : grades.length === 0 ? <Panel><div className="feature-empty"><BookOpen size={22} /><strong>No grades have been approved yet</strong><span>New grade entries appear after Registrar approval.</span></div></Panel> : <>
+      <div className="term-picker"><CalendarDays size={16} /><select aria-label="Academic term" value={selectedTerm} onChange={event => setTerm(event.target.value)}>{termsWithGrades.map(value => <option key={value}>{value}</option>)}</select><span>Term GWA <strong>{gwa}</strong></span></div>
+      <Panel><DataTable headings={['COURSE CODE', 'SUBJECT', 'UNITS', 'FINAL GRADE', 'RESULT']} rows={rows.map(item => [item.courseCode, item.subject, item.units, item.grade, <StatusPill value={item.status} />])} /></Panel>
+      <p className="feature-note"><FileText size={15} /> These are portal records entered by your teacher. Contact the Registrar for an official certified report.</p>
+    </>}
+  </>
 }
-
 function EvaluationPage() {
   const semesterGroups = [
     { term: '1st Year · 1st Semester', items: [['EDUC 101', 'The Child and Adolescent Learner', 'Passed'], ['GE 101', 'Understanding the Self', 'Passed'], ['ENG 101', 'Introduction to Language Study', 'Passed'], ['GE 102', 'Purposive Communication', 'Failed']] },
@@ -102,7 +148,7 @@ function EvaluationPage() {
     { term: '2nd Year · 2nd Semester', items: [['EDUC 206', 'Assessment of Learning 2', 'Passed'], ['ENG 207', 'Teaching Literature', 'Passed'], ['GE 205', 'The Contemporary World', 'Credited']] },
     { term: '3rd Year · 1st Semester', items: [['EDUC 301', 'Teaching Internship', 'In progress'], ['ENG 307', 'Creative Writing', 'In progress'], ['ENG 310', 'Inclusive Language Assessment', 'Failed']] },
   ]
-  return <><PageHeading eyebrow="ACADEMICS · CURRICULUM TRACKER" title="Academic Evaluation" description="Track completed, failed, credited, and incomplete curriculum requirements." /><Panel className="evaluation-progress"><div><span className="metric-label">CURRICULUM COMPLETION</span><strong>36 <small>of 54 subjects</small></strong><span className="metric-foot">66.7% complete · 18 subjects remaining</span></div><div className="evaluation-track"><i style={{ width: '66.7%' }} /></div><div className="evaluation-key"><StatusPill value="Passed" /><StatusPill value="Failed" /><StatusPill value="Credited" /><StatusPill value="Incomplete" /></div></Panel><div className="evaluation-terms">{semesterGroups.map(group => <Panel key={group.term}><div className="evaluation-term-heading"><h3>{group.term}</h3><span>{group.items.filter(item => item[2] === 'Passed' || item[2] === 'Credited').length}/{group.items.length} completed</span></div><DataTable headings={['SUBJECT', 'TITLE', 'STATUS']} rows={group.items.map(([code, name, status]) => [code, name, <StatusPill value={status} />])} /></Panel>)}</div><div className="feature-note"><ShieldCheck size={16} /> Evaluation is a planning preview; confirm graduation requirements with your academic adviser.</div></>
+  return <><PageHeading eyebrow="ACADEMICS · CURRICULUM TRACKER" title="Academic Evaluation" description="Track completed, failed, credited, and incomplete curriculum requirements." /><Panel className="evaluation-progress"><div><span className="metric-label">CURRICULUM COMPLETION</span><strong>36 <small>of 54 subjects</small></strong><span className="metric-foot">66.7% complete · 18 subjects remaining</span></div><div className="evaluation-track"><i style={{ width: '66.7%' }} /></div><div className="evaluation-key"><StatusPill value="Passed" /><StatusPill value="Failed" /><StatusPill value="Credited" /><StatusPill value="Incomplete" /></div></Panel><div className="evaluation-terms">{semesterGroups.map(group => <Panel key={group.term}><div className="evaluation-term-heading"><h3>{group.term}</h3><span>{group.items.filter(item => item[2] === 'Passed' || item[2] === 'Credited').length}/{group.items.length} completed</span></div><DataTable headings={['SUBJECT', 'TITLE', 'STATUS']} rows={group.items.map(([code, name, status]) => [code, name, <StatusPill value={status} />])} /></Panel>)}</div><div className="feature-note"><ShieldCheck size={16} /> Sample curriculum preview; confirm requirements and progress against your official evaluation with your academic adviser.</div></>
 }
 
 function MajorsPage() {
@@ -116,7 +162,7 @@ function MajorsPage() {
     ['MAPEH', 'MPH', 'pink', '♫', 'Music, arts, physical education, and health', 'Music and Arts · Physical Education · Health Education'],
   ]
   const filtered = majorDetails.filter(item => item.join(' ').toLowerCase().includes(query.toLowerCase()))
-  return <><PageHeading eyebrow="SCHOOL OF EDUCATION · BSED" title="Explore BSED Majors" description="Find your specialization, focus areas, and future educator community." /><div className="explorer-search"><Search size={16} /><input aria-label="Search majors" placeholder="Search majors and subject areas..." value={query} onChange={event => setQuery(event.target.value)} /></div><div className="major-explorer-grid">{filtered.map(([name, code, color, icon, focus, subjectsList]) => <Panel className="major-explorer-card" key={code}><div className="major-explorer-card-top"><span className={`major-icon major-${color}`}>{icon}</span><span>{code}</span></div><h3>{name}</h3><p>{focus}</p><strong>Sample subject areas</strong><small>{subjectsList}</small><span className="major-student-total">{({ English: 128, Filipino: 96, Mathematics: 112, Science: 84, 'Social Studies': 103, MAPEH: 76 })[name]} students in the community</span></Panel>)}</div>{filtered.length === 0 && <div className="feature-empty">No majors match “{query}”.</div>}</>
+  return <><PageHeading eyebrow="SCHOOL OF EDUCATION · BSED" title="Explore BSED Majors" description="Find your specialization, focus areas, and future educator community." /><div className="explorer-search"><Search size={16} /><input aria-label="Search majors" placeholder="Search majors and subject areas..." value={query} onChange={event => setQuery(event.target.value)} /></div><div className="major-explorer-grid">{filtered.map(([name, code, color, icon, focus, subjectsList]) => <Panel className="major-explorer-card" key={code}><div className="major-explorer-card-top"><span className={`major-icon major-${color}`}>{icon}</span><span>{code}</span></div><h3>{name}</h3><p>{focus}</p><strong>Sample subject areas</strong><small>{subjectsList}</small><span className="major-student-total">{({ English: 128, Filipino: 96, Mathematics: 112, Science: 84, 'Social Studies': 103, MAPEH: 76 })[name]} students in the community</span></Panel>)}</div><div className="feature-note"><ShieldCheck size={16} /> Major descriptions and community counts are sample preview content, not official enrollment totals.</div>{filtered.length === 0 && <div className="feature-empty">No majors match “{query}”.</div>}</>
 }
 
 function LedgerPage({ onNotice }) {
@@ -137,6 +183,93 @@ function PaymentPage({ onNotice }) {
   const [reference, setReference] = useState('')
   const [paid, setPaid] = useState(false)
   return <><PageHeading eyebrow="STUDENT FINANCE · PAYMENT PREVIEW" title="Online Payment" description="Review the demo checkout flow for your student account." /><div className="payment-warning"><ShieldCheck size={17} /><span><strong>Demo only:</strong> no money will be collected. A real payment requires the school's payment provider and cashier reconciliation.</span></div><div className="payment-layout"><Panel><h3>Amount due</h3><div className="payment-amount">₱0.00</div><p className="feature-muted">Sample ledger shows no outstanding balance.</p><div className="payment-methods"><strong>Payment method preview</strong>{['Bank transfer', 'E-wallet', 'Over-the-counter'].map(value => <label key={value}><input type="radio" name="payment-method" value={value} checked={method === value} onChange={() => setMethod(value)} />{value}</label>)}</div><label className="reference-label" htmlFor="payment-reference">Reference number (optional demo)</label><input className="feature-text-input" id="payment-reference" placeholder="Enter a sample reference" value={reference} onChange={event => setReference(event.target.value)} /><button className="login-submit" onClick={() => { setPaid(true); onNotice('Demo payment recorded locally only; no charge was made.') }}>{paid ? <><Check size={15} /> Demo submitted</> : <><CreditCard size={15} /> Preview payment</>}</button></Panel><Panel className="payment-summary"><span className="metric-label">PAYMENT SUMMARY</span><div><span>Current balance</span><strong>₱0.00</strong></div><div><span>Payment fee</span><strong>₱0.00</strong></div><div className="payment-total"><span>Total</span><strong>₱0.00</strong></div><small>Payment certification is issued by the cashier after a real transaction is confirmed.</small></Panel></div></>
+}
+
+function DatabaseAttendancePage() {
+  const [records, setRecords] = useState([])
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  useEffect(() => { fetch('/api/student/attendance', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load attendance records.'); setRecords(result.records) }).catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
+  const total = records.length
+  const attended = records.filter(item => ['Present', 'Late', 'Excused'].includes(item.status)).length
+  return <><PageHeading eyebrow="ACADEMICS · CLASS RECORDS" title="Attendance Records" description="Attendance submitted by your assigned teachers." action={<PrintExport onExport={() => downloadCsv('attendance-records.csv', [['Date', 'Course', 'Subject', 'Status'], ...records.map(item => [item.date, item.courseCode, item.subject, item.status])])} />} />{loading ? <Panel><div className="feature-empty">Loading attendance...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : <><div className="ledger-summary"><Panel><span className="metric-label">CLASSES RECORDED</span><strong>{total}</strong></Panel><Panel><span className="metric-label">ATTENDANCE RATE</span><strong>{total ? `${Math.round(attended / total * 100)}%` : '—'}</strong></Panel></div>{records.length ? <Panel><DataTable headings={['DATE', 'COURSE', 'SUBJECT', 'STATUS']} rows={records.map(item => [item.date, item.courseCode, item.subject, <StatusPill value={item.status} />])} /></Panel> : <Panel><div className="feature-empty"><Clock3 size={22} /><strong>No attendance has been recorded</strong><span>Your teachers' attendance entries will appear here.</span></div></Panel>}</>}</>
+}
+
+function DatabaseEnrollmentHistoryPage() {
+  const [records, setRecords] = useState([])
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  useEffect(() => { fetch('/api/student/enrollments', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load registration history.'); setRecords(result.enrollments) }).catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
+  return <><PageHeading eyebrow="ACADEMICS · REGISTRAR RECORDS" title="Enrollment History" description="Review your registration submissions and Registrar decisions." action={<PrintExport onExport={() => downloadCsv('enrollment-history.csv', [['Term', 'Submitted', 'Units', 'Status'], ...records.map(item => [item.term, new Date(item.submittedAt).toLocaleDateString(), item.units, item.status])])} />} />{loading ? <Panel><div className="feature-empty">Loading registration history...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : records.length ? <Panel><DataTable headings={['ACADEMIC TERM', 'SUBMITTED', 'UNITS', 'CLASSES', 'STATUS']} rows={records.map(item => [<strong>{item.term}</strong>, new Date(item.submittedAt).toLocaleDateString(), item.units, item.classes.map(classItem => classItem.courseCode).join(', '), <StatusPill value={item.status} />])} /></Panel> : <Panel><div className="feature-empty"><BookOpen size={22} /><strong>No registration submissions yet</strong><span>Choose available official classes to request enrollment.</span></div></Panel>}</>
+}
+
+function DatabaseEvaluationPage() {
+  const [subjectsData, setSubjectsData] = useState([])
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  useEffect(() => { fetch('/api/student/evaluation', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load academic evaluation.'); setSubjectsData(result.subjects) }).catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
+  const completed = subjectsData.filter(item => ['Passed', 'Credited'].includes(item.status)).length
+  const percent = subjectsData.length ? Math.round(completed / subjectsData.length * 100) : 0
+  const termsList = [...new Set(subjectsData.map(item => `Year ${item.yearLevel} · ${item.term}`))]
+  return <><PageHeading eyebrow="ACADEMICS · CURRICULUM TRACKER" title="Academic Evaluation" description="Official curriculum requirements and approved grade records for your major." />{loading ? <Panel><div className="feature-empty">Loading curriculum...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : !subjectsData.length ? <Panel><div className="feature-empty"><BookOpen size={22} /><strong>Curriculum requirements are not set up yet</strong><span>Ask the academic office to add verified requirements for your major.</span></div></Panel> : <><Panel className="evaluation-progress"><div><span className="metric-label">CURRICULUM COMPLETION</span><strong>{completed} <small>of {subjectsData.length} subjects</small></strong><span className="metric-foot">{percent}% complete</span></div><div className="evaluation-track"><i style={{ width: `${percent}%` }} /></div></Panel>{termsList.map(term => { const rows = subjectsData.filter(item => `Year ${item.yearLevel} · ${item.term}` === term); return <Panel key={term}><div className="evaluation-term-heading"><h3>{term}</h3><span>{rows.filter(item => ['Passed', 'Credited'].includes(item.status)).length}/{rows.length} completed</span></div><DataTable headings={['COURSE CODE', 'SUBJECT', 'UNITS', 'GRADE', 'STATUS']} rows={rows.map(item => [item.courseCode, item.subject, item.units, item.grade || '—', <StatusPill value={item.status} />])} /></Panel> })}</>}</>
+}
+
+function DatabaseLedgerPage() {
+  const [data, setData] = useState({ records: [], totals: { charges: 0, payments: 0, balance: 0 } })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  useEffect(() => { fetch('/api/student/ledger', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load student ledger.'); setData(result) }).catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
+  const peso = amount => `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+  const rows = data.records.map(item => [new Date(item.postedAt).toLocaleDateString(), item.reference || '—', `${item.detail} · ${item.term}`, item.type === 'Charge' ? peso(item.amount) : '—', item.type === 'Payment' ? peso(item.amount) : '—', item.status])
+  return <><PageHeading eyebrow="STUDENT FINANCE · POSTED ENTRIES" title="Student Ledger" description="Charges and cashier-posted payments recorded for your account." action={<PrintExport onExport={() => downloadCsv('student-ledger.csv', [['Date', 'Reference', 'Details', 'Debit', 'Credit', 'Status'], ...rows])} />} />{loading ? <Panel><div className="feature-empty">Loading ledger...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : <><div className="ledger-summary"><Panel><span className="metric-label">TOTAL ASSESSED</span><strong>{peso(data.totals.charges)}</strong></Panel><Panel><span className="metric-label">PAYMENTS RECEIVED</span><strong>{peso(data.totals.payments)}</strong></Panel><Panel><span className="metric-label">CURRENT BALANCE</span><strong>{peso(data.totals.balance)}</strong></Panel></div>{rows.length ? <Panel><DataTable headings={['DATE', 'REFERENCE', 'DETAILS', 'DEBIT', 'CREDIT', 'STATUS']} rows={rows} /></Panel> : <Panel><div className="feature-empty"><Receipt size={22} /><strong>No ledger entries have been posted</strong><span>Ask the school cashier to post verified charges and payments.</span></div></Panel>}</>}</>
+}
+
+function DatabaseRegistrationPage({ onNotice }) {
+  const [schedules, setSchedules] = useState([])
+  const [enrollments, setEnrollments] = useState([])
+  const [selected, setSelected] = useState([])
+  const [term, setTerm] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const load = async () => {
+    setLoading(true)
+    try { const [scheduleResponse, enrollmentResponse] = await Promise.all([fetch('/api/student/schedules', { credentials: 'include' }), fetch('/api/student/enrollments', { credentials: 'include' })]); const [scheduleData, enrollmentData] = await Promise.all([scheduleResponse.json(), enrollmentResponse.json()]); if (!scheduleResponse.ok || !enrollmentResponse.ok) throw new Error(scheduleData.message || enrollmentData.message || 'Could not load registration options.'); setSchedules(scheduleData.schedules); setEnrollments(enrollmentData.enrollments); const termOptions = [...new Set(scheduleData.schedules.map(item => item.term))]; setTerm(current => termOptions.includes(current) ? current : termOptions[0] || ''); setSelected([]) }
+    catch (loadError) { setError(loadError.message) } finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
+  const offerings = schedules.filter(item => item.term === term)
+  const units = offerings.filter(item => selected.includes(item.scheduleId)).reduce((sum, item) => sum + item.units, 0)
+  const pending = enrollments.find(item => item.term === term && ['Pending', 'Approved'].includes(item.status))
+  const submit = async () => { setSaving(true); setError(''); try { const response = await fetch('/api/student/enrollments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ term, scheduleIds: selected }) }); const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not submit registration.'); setEnrollments(current => [result.enrollment, ...current]); setSelected([]); onNotice('Registration submitted for Registrar review.') } catch (submitError) { setError(submitError.message) } finally { setSaving(false) } }
+  return <><PageHeading eyebrow="REGISTRAR · CLASS REQUEST" title="Online Registration" description="Select available official classes and send your request to the Registrar." />{loading ? <Panel><div className="feature-empty">Loading available classes...</div></Panel> : <><div className="payment-warning"><ShieldCheck size={17} /><span>Submitting requests a registration review. It does not guarantee enrollment until the Registrar approves it.</span></div>{error && <div className="admin-error" role="alert">{error}</div>}{pending && <Panel>Your {term} request is <strong>{pending.status}</strong>. Check Enrollment History for updates.</Panel>}{!schedules.length ? <Panel><div className="feature-empty"><BookOpen size={22} /><strong>No official classes are open for registration</strong><span>Ask the administrator to add verified class schedules first.</span></div></Panel> : <Panel className="registration-panel"><div className="panel-title-row"><div><h3>Available official classes</h3><p>Select the academic term and requested classes.</p></div><label>Term <select value={term} onChange={event => { setTerm(event.target.value); setSelected([]) }}>{[...new Set(schedules.map(item => item.term))].map(value => <option key={value}>{value}</option>)}</select></label></div><div className="registration-options">{offerings.map(item => <label className={`registration-option ${selected.includes(item.scheduleId) ? 'registration-selected' : ''}`} key={item.scheduleId}><input type="checkbox" disabled={Boolean(pending)} checked={selected.includes(item.scheduleId)} onChange={() => setSelected(current => current.includes(item.scheduleId) ? current.filter(id => id !== item.scheduleId) : current.length >= 12 ? current : [...current, item.scheduleId])} /><span><strong>{item.courseCode} · {item.subject}</strong><small>{item.section || 'All sections'} · {item.units} units · {item.day} · {item.time} · {item.room}</small></span><Check size={16} /></label>)}</div><div className="registration-footer"><span>{selected.length} classes · {units} units selected</span><button className="login-submit" disabled={!selected.length || units > 24 || Boolean(pending) || saving} onClick={submit}>{saving ? 'Submitting...' : 'Submit for Registrar review'} <ArrowRight size={15} /></button></div>{units > 24 && <div className="admin-error">Selected course load is over 24 units. Contact the Registrar for an overload review.</div>}</Panel>}</>}</>
+}
+
+function DatabaseEventsPage() {
+  const [events, setEvents] = useState([])
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  useEffect(() => { fetch('/api/student/events', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load campus events.'); setEvents(result.events) }).catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
+  return <><PageHeading eyebrow="CAMPUS LIFE · OFFICIAL UPDATES" title="Campus Events" description="Upcoming events posted by the school administrator." />{loading ? <Panel><div className="feature-empty">Loading events...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : events.length ? <div className="notification-list">{events.map(item => <Panel key={`${item.date}-${item.title}`}><span className="notification-date">{item.date} · {item.location}</span><h3>{item.title}</h3><p>{item.description}</p></Panel>)}</div> : <Panel><div className="feature-empty"><CalendarDays size={22} /><strong>No upcoming events posted</strong><span>Official campus event details will appear here.</span></div></Panel>}</>
+}
+
+function DatabaseCommunityPage({ onNotice }) {
+  const [posts, setPosts] = useState([])
+  const [body, setBody] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const load = () => fetch('/api/student/community', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load the student community.'); setPosts(result.posts) })
+  useEffect(() => { load().catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
+  const publish = async event => { event.preventDefault(); setSaving(true); setError(''); try { const response = await fetch('/api/student/community', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ body }) }); const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not publish your post.'); setPosts(current => [result.post, ...current]); setBody(''); onNotice('Your post was shared with the BSED community.') } catch (publishError) { setError(publishError.message) } finally { setSaving(false) } }
+  return <><PageHeading eyebrow="CAMPUS LIFE · STUDENT SUPPORT" title="Community & Services" description="Share updates with the BSED community and find study resources." /><div className="services-grid"><Panel className="forum-panel"><div className="panel-title-row"><div><h3>Student community</h3><p>Posts are visible to signed-in student accounts.</p></div><MessageCircle size={18} /></div><form className="forum-compose" onSubmit={publish}><textarea required minLength={3} maxLength={1000} placeholder="Share an update or ask the community..." value={body} onChange={event => setBody(event.target.value)} /><button className="feature-action feature-primary" disabled={saving}><Send size={14} /> {saving ? 'Posting...' : 'Post'}</button></form>{error && <div className="admin-error" role="alert">{error}</div>}{loading ? <div className="feature-empty">Loading community posts...</div> : posts.length ? <div className="community-posts">{posts.map(item => <article className="community-post" key={item.postId}><div className="community-avatar">{item.author.slice(0, 1)}</div><div><strong>{item.author}</strong><small>{item.major} · {new Date(item.createdAt).toLocaleString()}</small><p>{item.body}</p></div></article>)}</div> : <div className="feature-empty">No posts yet. Start the conversation.</div>}</Panel><div className="service-cards"><Panel><span className="service-icon library-service"><Library size={19} /></span><h3>Open study resources</h3><p>Explore public education research, textbooks, and literature.</p><div className="library-links"><a href="https://eric.ed.gov/" target="_blank" rel="noreferrer">ERIC · Education research <ArrowRight size={13} /></a><a href="https://openstax.org/" target="_blank" rel="noreferrer">OpenStax · Free textbooks <ArrowRight size={13} /></a><a href="https://www.gutenberg.org/" target="_blank" rel="noreferrer">Project Gutenberg · Literature <ArrowRight size={13} /></a></div></Panel><Panel><span className="service-icon health-service"><HeartPulse size={19} /></span><h3>Campus clinic</h3><p>For clinic hours and health concerns, contact the college clinic directly. Emergency care is not handled through this portal.</p></Panel></div></div></>
+}
+
+function DatabasePaymentPage() {
+  const [balance, setBalance] = useState(null)
+  const [error, setError] = useState('')
+  useEffect(() => { fetch('/api/student/ledger', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load amount due.'); setBalance(result.totals.balance) }).catch(loadError => setError(loadError.message)) }, [])
+  return <><PageHeading eyebrow="STUDENT FINANCE · CASHIER SERVICE" title="Online Payment" description="Check the posted balance on your student ledger." />{error && <div className="admin-error" role="alert">{error}</div>}<div className="payment-warning"><ShieldCheck size={17} /><span><strong>No payment gateway is connected.</strong> This portal cannot collect or confirm money. Pay through the school's official cashier instructions; the cashier can post verified payments to your ledger.</span></div><Panel><h3>Current ledger balance</h3><div className="payment-amount">{balance === null ? 'Loading...' : `₱${Number(balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}</div><p className="feature-muted">A successful payment must be confirmed by the cashier before it appears as a credit on your ledger.</p></Panel></>
 }
 
 function AssistantPage({ onNotice }) {
@@ -161,10 +294,19 @@ function ServicesPage({ onNotice }) {
 }
 
 function NotificationsPage() {
-  const [read, setRead] = useState(false)
-  return <><PageHeading eyebrow="PORTAL UPDATES" title="Notifications" description="Academic reminders and student advisories." action={<button className="feature-action" onClick={() => setRead(true)}><Check size={15} /> Mark all as read</button>} /><div className="notification-list"><Panel className={read ? 'notification-read' : ''}><span className="notification-marker" /><div><span className="notification-date">TODAY · 8:00 AM</span><h3>Enrollment advisory for the second semester</h3><p>Review the academic calendar and confirm your advising schedule with your major coordinator.</p><span className="notification-tag">REGISTRAR</span></div></Panel><Panel className={read ? 'notification-read' : ''}><span className="notification-marker" /><div><span className="notification-date">YESTERDAY · 2:30 PM</span><h3>Teaching internship orientation</h3><p>Pre-registration is open. Bring your student ID and latest evaluation form.</p><span className="notification-tag">COLLEGE OF EDUCATION</span></div></Panel><Panel className="notification-read"><div><span className="notification-date">SEP 20 · 11:15 AM</span><h3>Library service hours</h3><p>The library will close at 4:00 PM on Friday for scheduled maintenance.</p><span className="notification-tag">CAMPUS SERVICES</span></div></Panel></div></>
+  const [advisories, setAdvisories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    fetch('/api/student/advisories', { credentials: 'include' })
+      .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load advisories.'); setAdvisories(result.advisories) })
+      .catch(loadError => setError(loadError.message))
+      .finally(() => setLoading(false))
+  }, [])
+  return <><PageHeading eyebrow="PORTAL UPDATES" title="Notifications" description="Advisories for your BSED major." />
+    {error ? <div className="admin-error" role="alert">{error}</div> : loading ? <Panel><div className="feature-empty">Loading advisories...</div></Panel> : advisories.length === 0 ? <Panel><div className="feature-empty"><BellRing size={22} /><strong>No advisories yet</strong><span>Updates from your major teachers will appear here.</span></div></Panel> : <div className="notification-list">{advisories.map((item, index) => <Panel key={`${item.createdAt}-${index}`}><span className="notification-marker" /><div><span className="notification-date">{new Date(item.createdAt).toLocaleString()}</span><h3>{item.title}</h3><p>{item.body}</p><span className="notification-tag">{item.teacherName} · {item.major}</span></div></Panel>)}</div>}
+  </>
 }
-
 function AccountSettingsPage({ student, onNotice }) {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -194,16 +336,19 @@ function AccountSettingsPage({ student, onNotice }) {
 
 export default function PortalPage({ active, student, onNotice }) {
   const pages = useMemo(() => ({
-    'Class Schedule': <ClassSchedulePage />,
+    'Class Schedule': <ClassSchedulePage student={student} />,
+    'My Schedule': <ClassSchedulePage student={student} />,
     'Enrolled Subjects': <EnrolledSubjectsPage />,
-    'Enrollment History': <EnrollmentHistoryPage />,
+    'Enrollment History': <DatabaseEnrollmentHistoryPage />,
+    'Attendance Records': <DatabaseAttendancePage />,
     'Report of Grades': <GradesPage />,
-    'Academic Evaluation': <EvaluationPage />,
-    'Student Ledger': <LedgerPage onNotice={onNotice} />,
-    'Online Registration': <RegistrationPage onNotice={onNotice} />,
-    'Online Payment': <PaymentPage onNotice={onNotice} />,
+    'Academic Evaluation': <DatabaseEvaluationPage />,
+    'Student Ledger': <DatabaseLedgerPage />,
+    'Online Registration': <DatabaseRegistrationPage onNotice={onNotice} />,
+    'Online Payment': <DatabasePaymentPage />,
+    'Campus Events': <DatabaseEventsPage />,
     'Virtual Assistant': <AssistantPage />,
-    'Community & Services': <ServicesPage onNotice={onNotice} />,
+    'Community & Services': <DatabaseCommunityPage onNotice={onNotice} />,
     'BSED Majors': <MajorsPage />,
     Notifications: <NotificationsPage />,
     'Account Settings': <AccountSettingsPage student={student} onNotice={onNotice} />,
