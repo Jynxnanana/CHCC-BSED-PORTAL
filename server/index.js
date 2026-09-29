@@ -26,6 +26,9 @@ const sessions = database.collection('sessions')
 const distDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist')
 const sessionDurationMs = 7 * 24 * 60 * 60 * 1000
 const cookieName = 'eduportal_session'
+const validMajors = ['English', 'Filipino', 'Math', 'Social Science', 'BEED']
+const validYears = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+const validOrgPositions = ['Member', 'President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Public Information Officer', 'Representative']
 
 const allowedClientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173'
 app.use(cors({
@@ -46,7 +49,7 @@ app.use(cors({
   },
   credentials: true,
 }))
-app.use(express.json({ limit: '10kb' }))
+app.use(express.json({ limit: '2mb' }))
 
 function getCookie(req, name) {
   const cookies = req.headers.cookie || ''
@@ -65,7 +68,7 @@ function clearSessionCookie(res) {
 }
 
 function publicStudent(student) {
-  return { studentId: student.studentId, name: student.name, major: student.major || 'Administration', section: student.section || '', role: student.role || 'student' }
+  return { studentId: student.studentId, name: student.name, major: student.major || 'Administration', section: student.section || '', yearLevel: student.yearLevel || '', organization: student.organization || '', orgPosition: student.orgPosition || '', photoUrl: student.photoUrl || '', role: student.role || 'student' }
 }
 
 function requireRoles(roles) {
@@ -102,10 +105,9 @@ app.get('/api/majors', (_req, res) => {
   res.json([
     { code: 'ENG', name: 'English' },
     { code: 'FIL', name: 'Filipino' },
-    { code: 'MTH', name: 'Mathematics' },
-    { code: 'SCI', name: 'Science' },
-    { code: 'SST', name: 'Social Studies' },
-    { code: 'MPH', name: 'MAPEH' },
+    { code: 'MTH', name: 'Math' },
+    { code: 'SS', name: 'Social Science' },
+    { code: 'BEED', name: 'BEED' },
   ])
 })
 
@@ -142,7 +144,7 @@ app.get('/api/auth/me', async (req, res) => {
     const session = await sessions.findOne({ tokenHash: hashSession(token), expiresAt: { $gt: new Date() } })
     if (!session) { clearSessionCookie(res); return res.status(401).json({ message: 'Sign in to continue.' }) }
     const collection = session.role === 'admin' ? admins : session.role === 'teacher' ? teachers : students
-    const account = await collection.findOne({ studentId: session.studentId }, { projection: { _id: 0, studentId: 1, name: 1, major: 1, section: 1, role: 1 } })
+    const account = await collection.findOne({ studentId: session.studentId }, { projection: { _id: 0, studentId: 1, name: 1, major: 1, section: 1, yearLevel: 1, organization: 1, orgPosition: 1, photoUrl: 1, role: 1 } })
     if (!account) { await sessions.deleteOne({ _id: session._id }); clearSessionCookie(res); return res.status(401).json({ message: 'Sign in to continue.' }) }
     res.json({ student: publicStudent({ ...account, role: session.role || 'student' }) })
   } catch (error) {
@@ -187,7 +189,7 @@ app.post('/api/auth/password', async (req, res) => {
 
 app.get('/api/admin/students', requireAdmin, async (_req, res) => {
   try {
-    const records = await students.find({}, { projection: { _id: 0, studentId: 1, name: 1, major: 1, section: 1, createdAt: 1 } }).sort({ name: 1 }).toArray()
+    const records = await students.find({}, { projection: { _id: 0, studentId: 1, name: 1, major: 1, section: 1, yearLevel: 1, organization: 1, orgPosition: 1, createdAt: 1 } }).sort({ name: 1 }).toArray()
     res.json({ students: records })
   } catch {
     res.status(503).json({ message: 'Could not load the student list.' })
@@ -199,16 +201,18 @@ app.post('/api/admin/students', requireAdmin, async (req, res) => {
   const name = String(req.body?.name || '').trim()
   const major = String(req.body?.major || '')
   const section = String(req.body?.section || '').trim()
+  const yearLevel = String(req.body?.yearLevel || '')
+  const organization = String(req.body?.organization || '')
+  const orgPosition = String(req.body?.orgPosition || '')
   const password = String(req.body?.password || '')
-  const validMajors = ['English', 'Filipino', 'Mathematics', 'Science', 'Social Studies', 'MAPEH']
-  if (!/^\d{8}$/.test(studentId) || name.length < 2 || name.length > 100 || !validMajors.includes(major) || section.length > 30 || password.length < 10) {
+  if (!/^\d{8}$/.test(studentId) || name.length < 2 || name.length > 100 || !validMajors.includes(major) || section.length > 30 || !validYears.includes(yearLevel) || !['Major', 'Minor'].includes(organization) || !validOrgPositions.includes(orgPosition) || password.length < 10) {
     return res.status(400).json({ message: 'Enter an 8-digit ID, name, valid major, and password with at least 10 characters.' })
   }
   try {
     if (await admins.findOne({ studentId }) || await teachers.findOne({ studentId })) return res.status(409).json({ message: 'That ID already belongs to a staff account.' })
     const credentials = await hashPassword(password)
-    await students.insertOne({ studentId, name, major, section, ...credentials, createdAt: new Date() })
-    res.status(201).json({ student: { studentId, name, major, section } })
+    await students.insertOne({ studentId, name, major, section, yearLevel, organization, orgPosition, ...credentials, createdAt: new Date() })
+    res.status(201).json({ student: { studentId, name, major, section, yearLevel, organization, orgPosition } })
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ message: 'That Student ID already has an account.' })
     res.status(503).json({ message: 'Could not create the student account.' })
@@ -220,20 +224,22 @@ app.put('/api/admin/students/:studentId', requireAdmin, async (req, res) => {
   const name = String(req.body?.name || '').trim()
   const major = String(req.body?.major || '')
   const section = String(req.body?.section || '').trim()
+  const yearLevel = String(req.body?.yearLevel || '')
+  const organization = String(req.body?.organization || '')
+  const orgPosition = String(req.body?.orgPosition || '')
   const password = String(req.body?.password || '')
-  const validMajors = ['English', 'Filipino', 'Mathematics', 'Science', 'Social Studies', 'MAPEH']
-  if (!/^\d{8}$/.test(studentId) || name.length < 2 || name.length > 100 || !validMajors.includes(major) || section.length > 30 || (password && password.length < 10)) {
+  if (!/^\d{8}$/.test(studentId) || name.length < 2 || name.length > 100 || !validMajors.includes(major) || section.length > 30 || !validYears.includes(yearLevel) || !['Major', 'Minor'].includes(organization) || !validOrgPositions.includes(orgPosition) || (password && password.length < 10)) {
     return res.status(400).json({ message: 'Enter a name, valid BSED major, and (if changing it) a password with at least 10 characters.' })
   }
   try {
     const current = await students.findOne({ studentId })
     if (!current) return res.status(404).json({ message: 'Student account not found.' })
-    const changes = { name, major, section, updatedAt: new Date() }
+    const changes = { name, major, section, yearLevel, organization, orgPosition, updatedAt: new Date() }
     if (password) Object.assign(changes, await hashPassword(password))
     await students.updateOne({ _id: current._id }, { $set: changes })
     await grades.updateMany({ studentId }, { $set: { studentName: name } })
     if (password) await sessions.deleteMany({ studentId, role: 'student' })
-    res.json({ student: { studentId, name, major, section } })
+    res.json({ student: { studentId, name, major, section, yearLevel, organization, orgPosition } })
   } catch {
     res.status(503).json({ message: 'Could not update the student account.' })
   }
@@ -255,7 +261,7 @@ app.delete('/api/admin/students/:studentId', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/teachers', requireAdmin, async (_req, res) => {
   try {
-    const records = await teachers.find({}, { projection: { _id: 0, studentId: 1, username: 1, name: 1, major: 1, createdAt: 1 } }).sort({ name: 1 }).toArray()
+    const records = await teachers.find({}, { projection: { _id: 0, studentId: 1, username: 1, name: 1, major: 1, photoUrl: 1, createdAt: 1 } }).sort({ name: 1 }).toArray()
     res.json({ teachers: records })
   } catch {
     res.status(503).json({ message: 'Could not load teacher accounts.' })
@@ -272,7 +278,6 @@ app.get('/api/admin/schedules', requireAdmin, async (_req, res) => {
 })
 
 function normalizeSchedule(body) {
-  const validMajors = ['English', 'Filipino', 'Mathematics', 'Science', 'Social Studies', 'MAPEH']
   const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const schedule = {
     term: String(body?.term || '').trim(),
@@ -365,7 +370,8 @@ app.post('/api/admin/teachers', requireAdmin, async (req, res) => {
   const name = String(req.body?.name || '').trim()
   const major = String(req.body?.major || '')
   const password = String(req.body?.password || '')
-  const validMajors = ['English', 'Filipino', 'Mathematics', 'Science', 'Social Studies', 'MAPEH']
+  const photoUrl = String(req.body?.photoUrl || '')
+  if (photoUrl && (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(photoUrl) || photoUrl.length > 1100000)) return res.status(400).json({ message: 'Use a PNG, JPG, or WebP picture smaller than 800 KB.' })
   if (!/^\d{8}$/.test(studentId) || !/^[a-z][a-z0-9._-]{2,31}$/.test(username) || name.length < 2 || name.length > 100 || !validMajors.includes(major) || password.length < 12) {
     return res.status(400).json({ message: 'Enter an 8-digit staff ID, valid username, full name, BSED major, and password with at least 12 characters.' })
   }
@@ -374,9 +380,9 @@ app.post('/api/admin/teachers', requireAdmin, async (req, res) => {
       return res.status(409).json({ message: 'That staff ID or username is already in use.' })
     }
     const credentials = await hashPassword(password)
-    const record = { studentId, username, name, major, role: 'teacher', ...credentials, createdAt: new Date() }
+    const record = { studentId, username, name, major, photoUrl, role: 'teacher', ...credentials, createdAt: new Date() }
     await teachers.insertOne(record)
-    res.status(201).json({ teacher: { studentId, username, name, major, role: 'teacher' } })
+    res.status(201).json({ teacher: { studentId, username, name, major, photoUrl, role: 'teacher' } })
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ message: 'That staff ID or username is already in use.' })
     res.status(503).json({ message: 'Could not create the teacher account.' })
@@ -389,7 +395,8 @@ app.put('/api/admin/teachers/:studentId', requireAdmin, async (req, res) => {
   const name = String(req.body?.name || '').trim()
   const major = String(req.body?.major || '')
   const password = String(req.body?.password || '')
-  const validMajors = ['English', 'Filipino', 'Mathematics', 'Science', 'Social Studies', 'MAPEH']
+  const photoUrl = String(req.body?.photoUrl || '')
+  if (photoUrl && (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(photoUrl) || photoUrl.length > 1100000)) return res.status(400).json({ message: 'Use a PNG, JPG, or WebP picture smaller than 800 KB.' })
   if (!/^\d{8}$/.test(studentId) || !/^[a-z][a-z0-9._-]{2,31}$/.test(username) || name.length < 2 || name.length > 100 || !validMajors.includes(major) || (password && password.length < 12)) {
     return res.status(400).json({ message: 'Enter a valid username, name, BSED major, and (if changing it) a password with at least 12 characters.' })
   }
@@ -399,12 +406,12 @@ app.put('/api/admin/teachers/:studentId', requireAdmin, async (req, res) => {
     const duplicateTeacher = await teachers.findOne({ username, studentId: { $ne: studentId } })
     const duplicateAdmin = await admins.findOne({ username })
     if (duplicateTeacher || duplicateAdmin) return res.status(409).json({ message: 'That username is already in use.' })
-    const changes = { username, name, major, updatedAt: new Date() }
+    const changes = { username, name, major, photoUrl, updatedAt: new Date() }
     if (password) Object.assign(changes, await hashPassword(password))
     await teachers.updateOne({ _id: current._id }, { $set: changes })
     await classSchedules.updateMany({ teacherId: studentId }, { $set: { major, teacherName: name, updatedAt: new Date() } })
     if (password) await sessions.deleteMany({ studentId, role: 'teacher' })
-    res.json({ teacher: { studentId, username, name, major, role: 'teacher' } })
+    res.json({ teacher: { studentId, username, name, major, photoUrl, role: 'teacher' } })
   } catch {
     res.status(503).json({ message: 'Could not update the teacher account.' })
   }
@@ -581,8 +588,7 @@ app.get('/api/admin/curriculum', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/curriculum', requireAdmin, async (req, res) => {
   const item = { major: String(req.body?.major || ''), courseCode: String(req.body?.courseCode || '').trim().toUpperCase(), subject: String(req.body?.subject || '').trim(), units: Number(req.body?.units), yearLevel: Number(req.body?.yearLevel), term: String(req.body?.term || '').trim() }
-  const majors = ['English', 'Filipino', 'Mathematics', 'Science', 'Social Studies', 'MAPEH']
-  if (!majors.includes(item.major) || !/^[A-Z0-9][A-Z0-9 -]{1,19}$/.test(item.courseCode) || item.subject.length < 2 || item.subject.length > 100 || !Number.isInteger(item.units) || item.units < 1 || item.units > 12 || !Number.isInteger(item.yearLevel) || item.yearLevel < 1 || item.yearLevel > 5 || item.term.length < 2 || item.term.length > 80) return res.status(400).json({ message: 'Check the major, course code, subject, units, year level, and term.' })
+  if (!validMajors.includes(item.major) || !/^[A-Z0-9][A-Z0-9 -]{1,19}$/.test(item.courseCode) || item.subject.length < 2 || item.subject.length > 100 || !Number.isInteger(item.units) || item.units < 1 || item.units > 12 || !Number.isInteger(item.yearLevel) || item.yearLevel < 1 || item.yearLevel > 4 || item.term.length < 2 || item.term.length > 80) return res.status(400).json({ message: 'Check the major, course code, subject, units, year level, and term.' })
   try {
     const result = await curriculum.insertOne({ ...item, createdAt: new Date(), createdBy: req.account.studentId })
     res.status(201).json({ subject: { ...item, curriculumId: result.insertedId.toString() } })

@@ -36,3 +36,4 @@ img.school-seal{width:36px;height:36px;display:block;flex:none;object-fit:cover;
 .theme-dark img.school-seal{background:#fff}
 .theme-dark .brand{color:#f2f4fb}
 .theme-dark .brand-light{color:#f1c76a;font-weight:700}
+.avatar img,.student-profile-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
