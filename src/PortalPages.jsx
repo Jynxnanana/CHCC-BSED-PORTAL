@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ArrowDownToLine, ArrowRight, BellRing, BookOpen, Bot, CalendarDays, Check, ChevronDown,
+  ArrowDownToLine, ArrowRight, BellRing, BookOpen, CalendarDays, Check, ChevronDown,
   Clock3, CreditCard, Download, FileText, HeartPulse, Library, MessageCircle,
   Printer, Receipt, Search, Send, ShieldCheck,
 } from 'lucide-react'
@@ -28,13 +28,6 @@ const transactions = [
   { date: 'Sep 18, 2026', id: 'TXN-260918-1043', detail: 'Laboratory and student services fees', debit: '₱3,500.00', credit: '—', status: 'Posted' },
   { date: 'Sep 18, 2026', id: 'PAY-260918-0831', detail: 'Online payment · Reference 0831', debit: '—', credit: '₱25,000.00', status: 'Posted' },
   { date: 'Aug 7, 2026', id: 'PAY-260807-0345', detail: 'Down payment', debit: '—', credit: '₱7,000.00', status: 'Posted' },
-]
-
-const faqItems = [
-  { question: 'When is enrollment?', answer: 'Enrollment dates are posted by the Registrar under Notifications. Check your student portal announcements for the current schedule.' },
-  { question: 'How can I check my academic progress?', answer: 'Open Academic Evaluation to review curriculum progress. Contact the Registrar for official grade records.' },
-  { question: 'Where can I check my account balance?', answer: 'Open Student Ledger to review posted charges and payments. Contact the school cashier for payment instructions.' },
-  { question: 'How do I contact the clinic?', answer: 'Use Community & Services to see clinic hours and request a callback from the campus health desk.' },
 ]
 
 function Panel({ children, className = '' }) { return <section className={`panel feature-panel ${className}`}>{children}</section> }
@@ -271,20 +264,6 @@ function DatabasePaymentPage() {
   return <><PageHeading eyebrow="STUDENT FINANCE · CASHIER SERVICE" title="Online Payment" description="Check the posted balance on your student ledger." />{error && <div className="admin-error" role="alert">{error}</div>}<div className="payment-warning"><ShieldCheck size={17} /><span><strong>No payment gateway is connected.</strong> This portal cannot collect or confirm money. Pay through the school's official cashier instructions; the cashier can post verified payments to your ledger.</span></div><Panel><h3>Current ledger balance</h3><div className="payment-amount">{balance === null ? 'Loading...' : `₱${Number(balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}</div><p className="feature-muted">A successful payment must be confirmed by the cashier before it appears as a credit on your ledger.</p></Panel></>
 }
 
-function AssistantPage({ onNotice }) {
-  const [question, setQuestion] = useState('')
-  const [messages, setMessages] = useState([{ from: 'assistant', text: 'Hi! I can help with common questions about registration, grades, payment, and campus services.' }])
-  const ask = text => {
-    const prompt = text.trim()
-    if (!prompt) return
-    const match = faqItems.find(item => prompt.toLowerCase().includes(item.question.split(' ')[0].toLowerCase()) || item.question.toLowerCase().split(' ').some(word => word.length > 4 && prompt.toLowerCase().includes(word.toLowerCase())))
-    const answer = match?.answer || 'I do not have that information yet. Please contact the Registrar or Student Affairs office for help.'
-    setMessages(current => [...current, { from: 'student', text: prompt }, { from: 'assistant', text: answer }])
-    setQuestion('')
-  }
-  return <><PageHeading eyebrow="STUDENT HELP DESK · FAQ ASSISTANT" title="Virtual Assistant" description="Quick answers to common student questions." /><div className="assistant-layout"><Panel className="assistant-chat"><div className="assistant-title"><span><Bot size={18} /></span><div><strong>Edu Assistant</strong><small><i /> Available · FAQ preview</small></div></div><div className="chat-messages">{messages.map((message, index) => <div className={`chat-bubble chat-${message.from}`} key={index}>{message.text}</div>)}</div><form className="chat-form" onSubmit={event => { event.preventDefault(); ask(question) }}><input placeholder="Ask about enrollment, grades..." value={question} onChange={event => setQuestion(event.target.value)} /><button aria-label="Send question"><Send size={16} /></button></form></Panel><Panel className="faq-panel"><h3>Common questions</h3>{faqItems.map(item => <button key={item.question} onClick={() => ask(item.question)}>{item.question}<ArrowRight size={14} /></button>)}</Panel></div><div className="feature-note"><Bot size={15} /> Automated FAQ preview. For personal records or urgent support, contact the appropriate campus office.</div></>
-}
-
 function ServicesPage({ onNotice }) {
   const [posts, setPosts] = useState([{ author: 'BSED Student Council', time: 'Today · 9:30 AM', text: 'Educ Week volunteers: sign-up is open at the College of Education office.', replies: 8 }, { author: 'College of Education', time: 'Yesterday · 3:15 PM', text: 'Peer tutoring sessions for major subjects start next week. Check with your department coordinator.', replies: 4 }])
   const [postText, setPostText] = useState('')
@@ -343,7 +322,6 @@ export default function PortalPage({ active, student, onNotice }) {
     'Report of Grades': <GradesPage />,
     'Academic Evaluation': <DatabaseEvaluationPage />,
     'Campus Events': <DatabaseEventsPage />,
-    'Virtual Assistant': <AssistantPage />,
     'Community & Services': <DatabaseCommunityPage onNotice={onNotice} />,
     'BSED Majors': <MajorsPage />,
     Notifications: <NotificationsPage />,
