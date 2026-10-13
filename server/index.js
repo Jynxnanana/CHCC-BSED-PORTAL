@@ -229,9 +229,13 @@ app.put('/api/admin/students/:studentId', requireAdmin, async (req, res) => {
   const organization = String(req.body?.organization || '')
   const orgPosition = String(req.body?.orgPosition || '')
   const password = String(req.body?.password || '')
-  if (!/^\d{8}$/.test(studentId) || name.length < 2 || name.length > 100 || section.length > 30 || !validYears.includes(yearLevel) || !['Major', 'Minor'].includes(organization) || !validOrgPositions.includes(orgPosition) || (password && password.length < 10)) {
-    return res.status(400).json({ message: 'Enter a name, valid BSED major, and (if changing it) a password with at least 10 characters.' })
-  }
+  if (!/^\d{8}$/.test(studentId)) return res.status(400).json({ message: 'Student ID must be 8 digits.' })
+  if (name.length < 2 || name.length > 100) return res.status(400).json({ message: 'Enter a name between 2 and 100 characters.' })
+  if (section.length > 30) return res.status(400).json({ message: 'Section must be 30 characters or fewer.' })
+  if (!validYears.includes(yearLevel)) return res.status(400).json({ message: 'Choose a valid college year (1st through 4th Year).' })
+  if (!['Major', 'Minor'].includes(organization)) return res.status(400).json({ message: 'Choose Major or Minor for the organization.' })
+  if (!validOrgPositions.includes(orgPosition)) return res.status(400).json({ message: 'Choose a valid organization position.' })
+  if (password && password.length < 10) return res.status(400).json({ message: 'New password must have at least 10 characters.' })
   try {
     const current = await students.findOne({ studentId })
     if (!current) return res.status(404).json({ message: 'Student account not found.' })
