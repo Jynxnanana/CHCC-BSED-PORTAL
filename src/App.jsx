@@ -112,7 +112,7 @@ function AdminStudents({ setNotice }) {
           <label htmlFor="new-student-name">Full name</label>
           <input id="new-student-name" required minLength={2} placeholder="Student's full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} />
           <label htmlFor="new-student-major">BSED major</label>
-          <select id="new-student-major" value={form.major} onChange={event => setForm({ ...form, major: event.target.value })}>{majors.map(major => <option key={major.code} value={major.name}>{major.name}</option>)}</select>
+          <select id="new-student-major" value={form.major} onChange={event => setForm({ ...form, major: event.target.value })}>{!majors.some(major => major.name === form.major) && <option value={form.major}>{form.major} (existing account)</option>}{majors.map(major => <option key={major.code} value={major.name}>{major.name}</option>)}</select>
           <label htmlFor="new-student-year">College year</label>
           <select id="new-student-year" value={form.yearLevel} onChange={event => setForm({ ...form, yearLevel: event.target.value })}>{studentYears.map(year => <option key={year}>{year}</option>)}</select>
           <label htmlFor="new-student-organization">Organization</label>

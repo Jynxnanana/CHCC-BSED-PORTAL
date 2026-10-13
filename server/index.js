@@ -27,6 +27,7 @@ const distDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 const sessionDurationMs = 7 * 24 * 60 * 60 * 1000
 const cookieName = 'eduportal_session'
 const validMajors = ['English', 'Filipino', 'Math', 'Social Science', 'BEED']
+const legacyStudentMajors = ['Mathematics', 'Science', 'Social Studies', 'MAPEH']
 const validYears = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 const validOrgPositions = ['Member', 'President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Public Information Officer', 'Representative']
 
@@ -228,12 +229,14 @@ app.put('/api/admin/students/:studentId', requireAdmin, async (req, res) => {
   const organization = String(req.body?.organization || '')
   const orgPosition = String(req.body?.orgPosition || '')
   const password = String(req.body?.password || '')
-  if (!/^\d{8}$/.test(studentId) || name.length < 2 || name.length > 100 || !validMajors.includes(major) || section.length > 30 || !validYears.includes(yearLevel) || !['Major', 'Minor'].includes(organization) || !validOrgPositions.includes(orgPosition) || (password && password.length < 10)) {
+  if (!/^\d{8}$/.test(studentId) || name.length < 2 || name.length > 100 || section.length > 30 || !validYears.includes(yearLevel) || !['Major', 'Minor'].includes(organization) || !validOrgPositions.includes(orgPosition) || (password && password.length < 10)) {
     return res.status(400).json({ message: 'Enter a name, valid BSED major, and (if changing it) a password with at least 10 characters.' })
   }
   try {
     const current = await students.findOne({ studentId })
     if (!current) return res.status(404).json({ message: 'Student account not found.' })
+    const keepExistingLegacyMajor = legacyStudentMajors.includes(current.major) && major === current.major
+    if (!validMajors.includes(major) && !keepExistingLegacyMajor) return res.status(400).json({ message: 'Choose one of the current programs before saving this student account.' })
     const changes = { name, major, section, yearLevel, organization, orgPosition, updatedAt: new Date() }
     if (password) Object.assign(changes, await hashPassword(password))
     await students.updateOne({ _id: current._id }, { $set: changes })
