@@ -9,5 +9,7 @@ import './features.css'
 import './overview.css'
 import './services.css'
 import './readability.css'
+import './protection.css'
+import './protection-theme.css'
 
 createRoot(document.getElementById('root')).render(<React.StrictMode><App /></React.StrictMode>)

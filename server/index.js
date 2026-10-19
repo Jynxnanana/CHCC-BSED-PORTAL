@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import { MongoClient, ObjectId } from 'mongodb'
+import { BSON, MongoClient, ObjectId } from 'mongodb'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { hashPassword, hashSession, newSessionToken, verifyPassword } from './auth.js'
@@ -16,6 +16,8 @@ const teachers = database.collection('teachers')
 const grades = database.collection('grades')
 const advisories = database.collection('advisories')
 const announcements = database.collection('announcements')
+const announcementReads = database.collection('announcementReads')
+const auditLogs = database.collection('auditLogs')
 const classSchedules = database.collection('classSchedules')
 const attendance = database.collection('attendance')
 const curriculum = database.collection('curriculum')
@@ -82,6 +84,7 @@ function requireRoles(roles) {
       const accounts = session.role === 'teacher' ? teachers : session.role === 'admin' ? admins : students
       req.account = await accounts.findOne({ studentId: session.studentId }, { projection: { passwordHash: 0, passwordSalt: 0 } })
       if (!req.account || !roles.includes(session.role)) return res.status(403).json({ message: 'You do not have permission to access this resource.' })
+      req.accountRole = session.role
       next()
     } catch {
       res.status(503).json({ message: 'Account service is temporarily unavailable.' })
@@ -92,6 +95,66 @@ function requireRoles(roles) {
 const requireAdmin = requireRoles(['admin'])
 const requireTeacher = requireRoles(['teacher'])
 const requireStudent = requireRoles(['student'])
+
+async function writeAuditLog(req, action, entityType, entityId, details = {}) {
+  try {
+    await auditLogs.insertOne({
+      actorId: req.account.studentId,
+      actorName: req.account.name || req.account.username || 'Unknown user',
+      actorRole: req.accountRole || req.account.role || 'unknown',
+      action,
+      entityType,
+      entityId: String(entityId),
+      details,
+      createdAt: new Date(),
+    })
+  } catch (error) {
+    console.error('Audit log write failed:', error.message)
+  }
+}
+
+function announcementAudienceFilter(announcement) {
+  switch (announcement.audienceType) {
+    case 'major': return { major: announcement.targetMajor }
+    case 'year': return { yearLevel: announcement.targetYearLevel }
+    case 'major_year': return { major: announcement.targetMajor, yearLevel: announcement.targetYearLevel }
+    default: return {}
+  }
+}
+
+function normalizeAnnouncement(body, { allowPastExpiration = false } = {}) {
+  const title = String(body?.title || '').trim()
+  const message = String(body?.body || '').trim()
+  const audienceType = String(body?.audienceType || 'all')
+  const targetMajor = String(body?.targetMajor || '')
+  const targetYearLevel = String(body?.targetYearLevel || '')
+  const expiresOn = String(body?.expiresOn || '')
+  const audienceTypes = ['all', 'major', 'year', 'major_year']
+  if (title.length < 3 || title.length > 120 || message.length < 5 || message.length > 3000) {
+    return { error: 'Use a title from 3–120 characters and announcement text from 5–3,000 characters.' }
+  }
+  if (!audienceTypes.includes(audienceType)) return { error: 'Choose a valid announcement audience.' }
+  if (['major', 'major_year'].includes(audienceType) && !validMajors.includes(targetMajor)) return { error: 'Choose a valid BSED major for this audience.' }
+  if (['year', 'major_year'].includes(audienceType) && !validYears.includes(targetYearLevel)) return { error: 'Choose a valid college year for this audience.' }
+  let expiresAt = null
+  if (expiresOn) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn)) return { error: 'Enter a valid announcement expiration date.' }
+    const calendarDate = new Date(`${expiresOn}T00:00:00.000Z`)
+    if (Number.isNaN(calendarDate.getTime()) || calendarDate.toISOString().slice(0, 10) !== expiresOn) return { error: 'Enter a valid announcement expiration date.' }
+    expiresAt = new Date(`${expiresOn}T23:59:59.999+08:00`)
+    if (!allowPastExpiration && expiresAt < new Date()) return { error: 'Expiration must be today or a future date.' }
+  }
+  return {
+    announcement: {
+      title,
+      body: message,
+      audienceType,
+      targetMajor: ['major', 'major_year'].includes(audienceType) ? targetMajor : '',
+      targetYearLevel: ['year', 'major_year'].includes(audienceType) ? targetYearLevel : '',
+      expiresAt,
+    },
+  }
+}
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -189,6 +252,9 @@ app.post('/api/auth/password', async (req, res) => {
     if (newPassword.length < minimumLength) return res.status(400).json({ message: `Use at least ${minimumLength} characters for the new password.` })
     const credentials = await hashPassword(newPassword)
     await collection.updateOne({ _id: account._id }, { $set: credentials, passwordChangedAt: new Date() })
+    req.account = account
+    req.accountRole = session.role
+    await writeAuditLog(req, 'update', `${session.role}-account`, session.studentId, { changedFields: ['password'] })
     const replacementToken = newSessionToken()
     const expiresAt = new Date(Date.now() + sessionDurationMs)
     await sessions.deleteMany({ studentId: session.studentId, role: session.role })
@@ -226,6 +292,7 @@ app.post('/api/admin/students', requireAdmin, async (req, res) => {
     if (await admins.findOne({ studentId }) || await teachers.findOne({ studentId })) return res.status(409).json({ message: 'That ID already belongs to a staff account.' })
     const credentials = await hashPassword(password)
     await students.insertOne({ studentId, name, major, section, yearLevel, organization, orgPosition, ...credentials, createdAt: new Date() })
+    await writeAuditLog(req, 'create', 'student-account', studentId, { name, major, yearLevel })
     res.status(201).json({ student: { studentId, name, major, section, yearLevel, organization, orgPosition } })
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ message: 'That Student ID already has an account.' })
@@ -259,6 +326,7 @@ app.put('/api/admin/students/:studentId', requireAdmin, async (req, res) => {
     await students.updateOne({ _id: current._id }, { $set: changes })
     await grades.updateMany({ studentId }, { $set: { studentName: name } })
     if (password) await sessions.deleteMany({ studentId, role: 'student' })
+    await writeAuditLog(req, 'update', 'student-account', studentId, { changedFields: ['name', 'major', 'section', 'yearLevel', 'organization', 'orgPosition', ...(password ? ['password'] : [])] })
     res.json({ student: { studentId, name, major, section, yearLevel, organization, orgPosition } })
   } catch {
     res.status(503).json({ message: 'Could not update the student account.' })
@@ -273,6 +341,7 @@ app.delete('/api/admin/students/:studentId', requireAdmin, async (req, res) => {
     if (!result.deletedCount) return res.status(404).json({ message: 'Student account not found.' })
     await sessions.deleteMany({ studentId, role: 'student' })
     await grades.deleteMany({ studentId })
+    await writeAuditLog(req, 'delete', 'student-account', studentId)
     res.status(204).end()
   } catch {
     res.status(503).json({ message: 'Could not delete the student account.' })
@@ -402,6 +471,7 @@ app.post('/api/admin/teachers', requireAdmin, async (req, res) => {
     const credentials = await hashPassword(password)
     const record = { studentId, username, name, major, photoUrl, role: 'teacher', ...credentials, createdAt: new Date() }
     await teachers.insertOne(record)
+    await writeAuditLog(req, 'create', 'teacher-account', studentId, { username, name, major })
     res.status(201).json({ teacher: { studentId, username, name, major, photoUrl, role: 'teacher' } })
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ message: 'That staff ID or username is already in use.' })
@@ -431,6 +501,7 @@ app.put('/api/admin/teachers/:studentId', requireAdmin, async (req, res) => {
     await teachers.updateOne({ _id: current._id }, { $set: changes })
     await classSchedules.updateMany({ teacherId: studentId }, { $set: { major, teacherName: name, updatedAt: new Date() } })
     if (password) await sessions.deleteMany({ studentId, role: 'teacher' })
+    await writeAuditLog(req, 'update', 'teacher-account', studentId, { changedFields: ['username', 'name', 'major', 'photoUrl', ...(password ? ['password'] : [])] })
     res.json({ teacher: { studentId, username, name, major, photoUrl, role: 'teacher' } })
   } catch {
     res.status(503).json({ message: 'Could not update the teacher account.' })
@@ -445,6 +516,7 @@ app.delete('/api/admin/teachers/:studentId', requireAdmin, async (req, res) => {
     if (!result.deletedCount) return res.status(404).json({ message: 'Teacher account not found.' })
     await sessions.deleteMany({ studentId, role: 'teacher' })
     await classSchedules.updateMany({ teacherId: studentId }, { $set: { teacherId: '', teacherName: '', updatedAt: new Date() } })
+    await writeAuditLog(req, 'delete', 'teacher-account', studentId)
     res.status(204).end()
   } catch {
     res.status(503).json({ message: 'Could not delete the teacher account.' })
@@ -485,7 +557,9 @@ app.post('/api/teacher/grades', requireTeacher, async (req, res) => {
     if (!student) return res.status(404).json({ message: 'Student not found in the assigned major and section.' })
     const status = grade <= 3 ? 'Passed' : grade === 4 ? 'Incomplete' : 'Failed'
     const record = { ...student, scheduleId, courseCode: schedule.courseCode, subject: schedule.subject, term: schedule.term, units: schedule.units, grade: grade.toFixed(2), status, approvalStatus: 'Pending', updatedAt: new Date(), updatedBy: req.account.studentId }
+    const previous = await grades.findOne({ studentId, courseCode: schedule.courseCode, term: schedule.term }, { projection: { _id: 1, grade: 1 } })
     await grades.updateOne({ studentId, courseCode: schedule.courseCode, term: schedule.term }, { $set: record, $unset: { approvedAt: '', approvedBy: '', approvalNote: '' }, $setOnInsert: { createdAt: new Date() } }, { upsert: true })
+    await writeAuditLog(req, previous ? 'update' : 'create', 'grade', `${studentId}:${schedule.courseCode}:${schedule.term}`, { studentId, courseCode: schedule.courseCode, subject: schedule.subject, term: schedule.term, previousGrade: previous?.grade || null, newGrade: record.grade })
     res.json({ grade: record })
   } catch {
     res.status(503).json({ message: 'Could not save this grade.' })
@@ -518,6 +592,8 @@ app.patch('/api/admin/grade-approvals/:gradeId', requireAdmin, async (req, res) 
     if (decision === 'Approved') Object.assign(changes, { approvedAt: new Date(), approvedBy: req.account.studentId })
     const result = await grades.updateOne({ _id: new ObjectId(gradeId) }, { $set: changes, ...(decision !== 'Approved' ? { $unset: { approvedAt: '', approvedBy: '' } } : {}) })
     if (!result.matchedCount) return res.status(404).json({ message: 'Grade record not found.' })
+    const grade = await grades.findOne({ _id: new ObjectId(gradeId) }, { projection: { studentId: 1, courseCode: 1, subject: 1, term: 1 } })
+    await writeAuditLog(req, 'review', 'grade', gradeId, { decision, studentId: grade?.studentId, courseCode: grade?.courseCode, subject: grade?.subject, term: grade?.term })
     res.json({ approvalStatus: decision })
   } catch { res.status(503).json({ message: 'Could not update grade approval.' }) }
 })
@@ -583,10 +659,23 @@ app.get('/api/student/advisories', requireStudent, async (req, res) => {
   }
 })
 
-app.get('/api/student/announcements', requireStudent, async (_req, res) => {
+app.get('/api/student/announcements', requireStudent, async (req, res) => {
   try {
-    const records = await announcements.find({}).sort({ createdAt: -1 }).limit(100).toArray()
-    res.json({ announcements: records.map(({ _id, ...item }) => ({ ...item, announcementId: _id.toString() })) })
+    const now = new Date()
+    const targetAudience = [
+      { audienceType: { $exists: false } }, { audienceType: 'all' },
+      { audienceType: 'major', targetMajor: req.account.major },
+      { audienceType: 'year', targetYearLevel: req.account.yearLevel },
+      { audienceType: 'major_year', targetMajor: req.account.major, targetYearLevel: req.account.yearLevel },
+    ]
+    const records = await announcements.find({ $and: [
+      { $or: [{ expiresAt: { $exists: false } }, { expiresAt: null }, { expiresAt: { $gt: now } }] },
+      { $or: targetAudience },
+    ] }).sort({ pinned: -1, createdAt: -1 }).limit(100).toArray()
+    const ids = records.map(item => item._id)
+    const reads = ids.length ? await announcementReads.find({ studentId: req.account.studentId, announcementId: { $in: ids } }).toArray() : []
+    const readById = new Map(reads.map(item => [item.announcementId.toString(), item.readAt]))
+    res.json({ announcements: records.map(({ _id, ...item }) => ({ ...item, announcementId: _id.toString(), isRead: readById.has(_id.toString()), readAt: readById.get(_id.toString()) || null })) })
   } catch {
     res.status(503).json({ message: 'Could not load school announcements.' })
   }
@@ -595,21 +684,79 @@ app.get('/api/student/announcements', requireStudent, async (_req, res) => {
 app.get('/api/admin/announcements', requireAdmin, async (_req, res) => {
   try {
     const records = await announcements.find({}).sort({ createdAt: -1 }).limit(200).toArray()
-    res.json({ announcements: records.map(({ _id, ...item }) => ({ ...item, announcementId: _id.toString() })) })
+    const studentsList = await students.find({}, { projection: { _id: 0, studentId: 1, major: 1, yearLevel: 1 } }).toArray()
+    const ids = records.map(item => item._id)
+    const reads = ids.length ? await announcementReads.find({ announcementId: { $in: ids } }).toArray() : []
+    const readStudentsByAnnouncement = new Map()
+    for (const read of reads) {
+      const key = read.announcementId.toString()
+      if (!readStudentsByAnnouncement.has(key)) readStudentsByAnnouncement.set(key, new Set())
+      readStudentsByAnnouncement.get(key).add(read.studentId)
+    }
+    res.json({ announcements: records.map(({ _id, ...item }) => {
+      const audience = announcementAudienceFilter(item)
+      const recipients = studentsList.filter(student => Object.entries(audience).every(([key, value]) => student[key] === value))
+      const readStudentIds = readStudentsByAnnouncement.get(_id.toString()) || new Set()
+      return { ...item, announcementId: _id.toString(), readCount: recipients.filter(student => readStudentIds.has(student.studentId)).length, recipientCount: recipients.length }
+    }) })
   } catch {
     res.status(503).json({ message: 'Could not load announcements.' })
   }
 })
 
-app.post('/api/admin/announcements', requireAdmin, async (req, res) => {
-  const title = String(req.body?.title || '').trim()
-  const body = String(req.body?.body || '').trim()
-  if (title.length < 3 || title.length > 120 || body.length < 5 || body.length > 3000) {
-    return res.status(400).json({ message: 'Use a title from 3–120 characters and announcement text from 5–3,000 characters.' })
-  }
+app.post('/api/student/announcements/:announcementId/read', requireStudent, async (req, res) => {
+  const announcementId = String(req.params.announcementId || '')
+  if (!ObjectId.isValid(announcementId)) return res.status(400).json({ message: 'Invalid announcement.' })
   try {
-    const announcement = { title, body, authorName: req.account.name || req.account.username || 'School Administrator', createdBy: req.account.studentId, createdAt: new Date() }
+    const id = new ObjectId(announcementId)
+    const now = new Date()
+    const visible = await announcements.findOne({ _id: id, $and: [
+      { $or: [{ expiresAt: { $exists: false } }, { expiresAt: null }, { expiresAt: { $gt: now } }] },
+      { $or: [
+        { audienceType: { $exists: false } }, { audienceType: 'all' },
+        { audienceType: 'major', targetMajor: req.account.major },
+        { audienceType: 'year', targetYearLevel: req.account.yearLevel },
+        { audienceType: 'major_year', targetMajor: req.account.major, targetYearLevel: req.account.yearLevel },
+      ] },
+    ] })
+    if (!visible) return res.status(404).json({ message: 'Announcement not found or no longer available.' })
+    const readAt = new Date()
+    try {
+      await announcementReads.updateOne({ announcementId: id, studentId: req.account.studentId }, { $setOnInsert: { announcementId: id, studentId: req.account.studentId, readAt } }, { upsert: true })
+    } catch (error) {
+      if (error.code !== 11000) throw error
+    }
+    const read = await announcementReads.findOne({ announcementId: id, studentId: req.account.studentId })
+    res.json({ isRead: true, readAt: read?.readAt || readAt })
+  } catch {
+    res.status(503).json({ message: 'Could not save announcement read status.' })
+  }
+})
+
+app.get('/api/admin/announcements/:announcementId/readers', requireAdmin, async (req, res) => {
+  const announcementId = String(req.params.announcementId || '')
+  if (!ObjectId.isValid(announcementId)) return res.status(400).json({ message: 'Invalid announcement.' })
+  try {
+    const announcement = await announcements.findOne({ _id: new ObjectId(announcementId) })
+    if (!announcement) return res.status(404).json({ message: 'Announcement not found.' })
+    const audience = announcementAudienceFilter(announcement)
+    const recipients = await students.find(audience, { projection: { _id: 0, studentId: 1, name: 1, major: 1, yearLevel: 1 } }).toArray()
+    const studentIds = recipients.map(item => item.studentId)
+    const reads = studentIds.length ? await announcementReads.find({ announcementId: new ObjectId(announcementId), studentId: { $in: studentIds } }).sort({ readAt: -1 }).toArray() : []
+    const byStudentId = new Map(reads.map(item => [item.studentId, item.readAt]))
+    res.json({ recipientCount: recipients.length, readCount: byStudentId.size, readers: recipients.filter(item => byStudentId.has(item.studentId)).map(({ studentId, name, major, yearLevel }) => ({ studentId, name, major, yearLevel, readAt: byStudentId.get(studentId) })).sort((a, b) => new Date(b.readAt) - new Date(a.readAt)) })
+  } catch {
+    res.status(503).json({ message: 'Could not load announcement read status.' })
+  }
+})
+
+app.post('/api/admin/announcements', requireAdmin, async (req, res) => {
+  const normalized = normalizeAnnouncement(req.body)
+  if (normalized.error) return res.status(400).json({ message: normalized.error })
+  try {
+    const announcement = { ...normalized.announcement, authorName: req.account.name || req.account.username || 'School Administrator', createdBy: req.account.studentId, pinned: Boolean(req.body?.pinned), createdAt: new Date() }
     const result = await announcements.insertOne(announcement)
+    await writeAuditLog(req, 'create', 'announcement', result.insertedId, { title: announcement.title, audienceType: announcement.audienceType, targetMajor: announcement.targetMajor, targetYearLevel: announcement.targetYearLevel, expiresAt: announcement.expiresAt, pinned: announcement.pinned })
     res.status(201).json({ announcement: { ...announcement, announcementId: result.insertedId.toString() } })
   } catch {
     res.status(503).json({ message: 'Could not publish the announcement.' })
@@ -618,17 +765,17 @@ app.post('/api/admin/announcements', requireAdmin, async (req, res) => {
 
 app.patch('/api/admin/announcements/:announcementId', requireAdmin, async (req, res) => {
   const announcementId = String(req.params.announcementId || '')
-  const title = String(req.body?.title || '').trim()
-  const body = String(req.body?.body || '').trim()
+  const normalized = normalizeAnnouncement(req.body, { allowPastExpiration: true })
   if (!ObjectId.isValid(announcementId)) return res.status(400).json({ message: 'Invalid announcement.' })
-  if (title.length < 3 || title.length > 120 || body.length < 5 || body.length > 3000) {
-    return res.status(400).json({ message: 'Use a title from 3–120 characters and announcement text from 5–3,000 characters.' })
-  }
+  if (normalized.error) return res.status(400).json({ message: normalized.error })
   try {
     const updatedAt = new Date()
-    const result = await announcements.updateOne({ _id: new ObjectId(announcementId) }, { $set: { title, body, updatedAt, updatedBy: req.account.studentId } })
+    const pinned = Boolean(req.body?.pinned)
+    const result = await announcements.updateOne({ _id: new ObjectId(announcementId) }, { $set: { ...normalized.announcement, pinned, updatedAt, updatedBy: req.account.studentId } })
     if (!result.matchedCount) return res.status(404).json({ message: 'Announcement not found.' })
-    res.json({ announcementId, title, body, updatedAt })
+    await announcementReads.deleteMany({ announcementId: new ObjectId(announcementId) })
+    await writeAuditLog(req, 'update', 'announcement', announcementId, { title: normalized.announcement.title, audienceType: normalized.announcement.audienceType, targetMajor: normalized.announcement.targetMajor, targetYearLevel: normalized.announcement.targetYearLevel, expiresAt: normalized.announcement.expiresAt, pinned })
+    res.json({ announcementId, ...normalized.announcement, pinned, updatedAt })
   } catch {
     res.status(503).json({ message: 'Could not update the announcement.' })
   }
@@ -639,9 +786,37 @@ app.delete('/api/admin/announcements/:announcementId', requireAdmin, async (req,
   try {
     const result = await announcements.deleteOne({ _id: new ObjectId(req.params.announcementId) })
     if (!result.deletedCount) return res.status(404).json({ message: 'Announcement not found.' })
+    await announcementReads.deleteMany({ announcementId: new ObjectId(req.params.announcementId) })
+    await writeAuditLog(req, 'delete', 'announcement', req.params.announcementId)
     res.status(204).end()
   } catch {
     res.status(503).json({ message: 'Could not delete the announcement.' })
+  }
+})
+
+app.get('/api/admin/audit-logs', requireAdmin, async (req, res) => {
+  const limit = Math.min(250, Math.max(1, Number.parseInt(req.query.limit, 10) || 150))
+  try {
+    const records = await auditLogs.find({}, { projection: { actorId: 1, actorName: 1, actorRole: 1, action: 1, entityType: 1, entityId: 1, details: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(limit).toArray()
+    res.json({ auditLogs: records.map(({ _id, ...item }) => ({ ...item, auditId: _id.toString() })) })
+  } catch {
+    res.status(503).json({ message: 'Could not load the audit log.' })
+  }
+})
+
+app.get('/api/admin/backup', requireAdmin, async (req, res) => {
+  const backupCollections = [students, admins, teachers, grades, advisories, announcements, announcementReads, auditLogs, classSchedules, attendance, curriculum, enrollments, ledger, campusEvents]
+  try {
+    await writeAuditLog(req, 'export', 'database-backup', 'bsed_portal')
+    const collections = {}
+    for (const collection of backupCollections) collections[collection.collectionName] = await collection.find({}).toArray()
+    const filename = `bsed-portal-backup-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}.json`
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(BSON.EJSON.stringify({ format: 'bsed-portal-backup', version: 1, database: 'bsed_portal', generatedAt: new Date(), collections }, null, 2, { relaxed: false }))
+  } catch {
+    res.status(503).json({ message: 'Could not create a database backup.' })
   }
 })
 
@@ -876,6 +1051,11 @@ async function start() {
   await campusEvents.createIndex({ date: 1 })
   await advisories.createIndex({ major: 1, createdAt: -1 })
   await announcements.createIndex({ createdAt: -1 })
+  await announcements.createIndex({ expiresAt: 1 })
+  await announcementReads.createIndex({ announcementId: 1, studentId: 1 }, { unique: true })
+  await announcementReads.createIndex({ studentId: 1, readAt: -1 })
+  await auditLogs.createIndex({ createdAt: -1 })
+  await auditLogs.createIndex({ entityType: 1, entityId: 1, createdAt: -1 })
   await classSchedules.createIndex({ major: 1, term: 1, day: 1 })
   await classSchedules.createIndex({ teacherId: 1, term: 1 })
   await sessions.createIndex({ tokenHash: 1 }, { unique: true })

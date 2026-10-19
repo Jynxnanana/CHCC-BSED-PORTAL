@@ -242,7 +242,15 @@ function DatabaseAnnouncementsPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   useEffect(() => { fetch('/api/student/announcements', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load announcements.'); setAnnouncements(result.announcements) }).catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
-  return <><PageHeading eyebrow="SCHOOL UPDATES · OFFICIAL NOTICES" title="Announcements" description="Official updates from the school administrator." />{loading ? <Panel><div className="feature-empty">Loading announcements...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : announcements.length ? <div className="notification-list">{announcements.map(item => <Panel key={item.announcementId}><span className="notification-date">{item.authorName || 'School Administrator'} · {new Date(item.updatedAt || item.createdAt).toLocaleString()}</span><h3>{item.title}</h3><p>{item.body}</p></Panel>)}</div> : <Panel><div className="feature-empty"><BellRing size={22} /><strong>No announcements yet</strong><span>Official school updates will appear here when they are posted.</span></div></Panel>}</>
+  const markRead = async item => {
+    try {
+      const response = await fetch(`/api/student/announcements/${item.announcementId}/read`, { method: 'POST', credentials: 'include' })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.message || 'Could not update read status.')
+      setAnnouncements(current => current.map(record => record.announcementId === item.announcementId ? { ...record, isRead: true, readAt: result.readAt } : record))
+    } catch (readError) { setError(readError.message) }
+  }
+  return <><PageHeading eyebrow="SCHOOL UPDATES · OFFICIAL NOTICES" title="Announcements" description="Official updates from the school administrator. Mark a notice as read when you have reviewed it." />{loading ? <Panel><div className="feature-empty">Loading announcements...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : announcements.length ? <div className="notification-list">{announcements.map(item => { const audience = item.audienceType === 'major' ? item.targetMajor : item.audienceType === 'year' ? item.targetYearLevel : item.audienceType === 'major_year' ? `${item.targetMajor} · ${item.targetYearLevel}` : 'All students'; return <Panel key={item.announcementId} className={item.isRead ? 'notification-read' : ''}><div><span className="notification-date">{item.authorName || 'School Administrator'} · {new Date(item.updatedAt || item.createdAt).toLocaleString()}</span><h3>{item.pinned && <span className="notice-pin-label">PINNED · </span>}{item.title}</h3><p>{item.body}</p><span className="notification-tag">{audience}{item.expiresAt ? ` · Expires ${new Date(item.expiresAt).toLocaleDateString()}` : ''}</span><div className="announcement-read-action">{item.isRead ? <span><Check size={14} /> Read{item.readAt ? ` · ${new Date(item.readAt).toLocaleString()}` : ''}</span> : <button className="feature-action" onClick={() => markRead(item)}>Mark as read</button>}</div></div></Panel>})}</div> : <Panel><div className="feature-empty"><BellRing size={22} /><strong>No announcements yet</strong><span>Official school updates will appear here when they are posted.</span></div></Panel>}</>
 }
 
 
@@ -258,6 +266,7 @@ function NotificationsPage() {
   const [updates, setUpdates] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [markingReadId, setMarkingReadId] = useState('')
   useEffect(() => {
     let cancelled = false
     const endpoints = [
@@ -281,8 +290,18 @@ function NotificationsPage() {
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
+  const markRead = async item => {
+    setMarkingReadId(item.announcementId)
+    try {
+      const response = await fetch(`/api/student/announcements/${item.announcementId}/read`, { method: 'POST', credentials: 'include' })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.message || 'Could not update read status.')
+      setUpdates(current => current.map(record => record.announcementId === item.announcementId ? { ...record, isRead: true, readAt: result.readAt } : record))
+    } catch (readError) { setError(readError.message) }
+    finally { setMarkingReadId('') }
+  }
   return <><PageHeading eyebrow="PORTAL UPDATES" title="Notifications" description="School announcements and updates from teachers in your major." />
-    {error ? <div className="admin-error" role="alert">{error}</div> : loading ? <Panel><div className="feature-empty">Loading announcements and advisories...</div></Panel> : updates.length === 0 ? <Panel><div className="feature-empty"><BellRing size={22} /><strong>No portal updates yet</strong><span>School announcements and major advisories will appear here.</span></div></Panel> : <div className="notification-list">{updates.map((item, index) => <Panel key={item.announcementId || `${item.updateType}-${item.createdAt}-${index}`}><span className="notification-marker" /><div><span className="notification-date">{item.updateType === 'announcement' ? 'SCHOOL ANNOUNCEMENT' : 'MAJOR ADVISORY'} - {new Date(item.sortDate).toLocaleString()}</span><h3>{item.title}</h3><p>{item.body}</p><span className="notification-tag">{item.updateType === 'announcement' ? item.authorName || 'School Administrator - All students' : `${item.teacherName} - ${item.major}`}</span></div></Panel>)}</div>}
+    {error ? <div className="admin-error" role="alert">{error}</div> : loading ? <Panel><div className="feature-empty">Loading announcements and advisories...</div></Panel> : updates.length === 0 ? <Panel><div className="feature-empty"><BellRing size={22} /><strong>No portal updates yet</strong><span>School announcements and major advisories will appear here.</span></div></Panel> : <div className="notification-list">{updates.map((item, index) => { const audience = item.audienceType === 'major' ? item.targetMajor : item.audienceType === 'year' ? item.targetYearLevel : item.audienceType === 'major_year' ? `${item.targetMajor} · ${item.targetYearLevel}` : 'All students'; return <Panel key={item.announcementId || `${item.updateType}-${item.createdAt}-${index}`} className={item.updateType === 'announcement' && item.isRead ? 'notification-read' : ''}><span className="notification-marker" /><div><span className="notification-date">{item.updateType === 'announcement' ? 'SCHOOL ANNOUNCEMENT' : 'MAJOR ADVISORY'} - {new Date(item.sortDate).toLocaleString()}</span><h3>{item.title}</h3><p>{item.body}</p><span className="notification-tag">{item.updateType === 'announcement' ? `${item.authorName || 'School Administrator'} · ${audience}${item.expiresAt ? ` · Expires ${new Date(item.expiresAt).toLocaleDateString()}` : ''}` : `${item.teacherName} · ${item.major}`}</span>{item.updateType === 'announcement' && <div className="announcement-read-action">{item.isRead ? <span><Check size={14} /> Read{item.readAt ? ` · ${new Date(item.readAt).toLocaleString()}` : ''}</span> : <button className="feature-action" disabled={markingReadId === item.announcementId} onClick={() => markRead(item)}>{markingReadId === item.announcementId ? 'Saving...' : 'Mark as read'}</button>}</div>}</div></Panel>})}</div>}
   </>
 }
 

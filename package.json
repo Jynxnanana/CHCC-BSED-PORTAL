@@ -10,6 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
+    "backup:database": "node server/backup.js",
     "create:student": "node server/create-student.js",
     "create:admin": "node server/create-admin.js",
     "seed:default-admin": "node server/seed-default-admin.js"
