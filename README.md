@@ -2,7 +2,7 @@
 
 ## EduPortal — BSED Student Portal
 
-A starter dashboard for Bachelor of Secondary Education students, with a focus on their majors and college community.
+A portal for Bachelor of Secondary Education students, focused on school announcements, academics, and their majors.
 
 ## Stack
 
@@ -81,6 +81,6 @@ Render deploys a new version when changes are pushed to the connected GitHub bra
 
 ## Portal modules
 
-Current navigation is role-specific. Students see **Overview**, **Notifications**, **Account Settings**, **Class Schedule**, **Academic Evaluation**, **Announcements**, **Community & Services**, and **BSED Majors**. Teachers see **Teacher Dashboard**, **My Schedule**, **Attendance**, **Gradebook**, **Major Advisories**, and **Account Settings**. Administrators see **Students**, **Teacher Accounts**, **Class Schedules**, **Curriculum Catalog**, **Announcements**, and **Account Settings**. The Virtual Assistant and removed student-service pages are not part of the current portal navigation.
+Current navigation is role-specific. Students see **Overview**, **Notifications**, **Account Settings**, **Class Schedule**, **Academic Evaluation**, **Announcements**, and **BSED Majors**. Teachers see **Teacher Dashboard**, **My Schedule**, **Attendance**, **Gradebook**, **Major Advisories**, and **Account Settings**. Administrators see **Students**, **Teacher Accounts**, **Class Schedules**, **Curriculum Catalog**, **Announcements**, and **Account Settings**. The Virtual Assistant, student community feed, and removed student-service pages are not part of the current portal navigation.
 
-Academic schedules, curriculum requirements, attendance, grades, teacher advisories, school announcements, student posts, and legacy event records are stored in MongoDB. They remain empty until authorized staff enter verified information. Teacher advisories reach students by matching BSED major, while administrator announcements are visible to all students. No payment gateway, student information system, official library portal, or school notification provider is connected. The portal is not a substitute for those systems or their official records.
+Academic schedules, curriculum requirements, attendance, grades, teacher advisories, school announcements, and legacy event records are stored in MongoDB. They remain empty until authorized staff enter verified information. Teacher advisories reach students by matching BSED major, while administrator announcements are visible to all students. Student community posts are not available in the current portal. No payment gateway, student information system, official library portal, or school notification provider is connected. The portal is not a substitute for those systems or their official records.

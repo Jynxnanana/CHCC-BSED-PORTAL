@@ -22,7 +22,6 @@ const curriculum = database.collection('curriculum')
 const enrollments = database.collection('enrollments')
 const ledger = database.collection('ledger')
 const campusEvents = database.collection('campusEvents')
-const communityPosts = database.collection('communityPosts')
 const sessions = database.collection('sessions')
 const distDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist')
 const sessionDurationMs = 7 * 24 * 60 * 60 * 1000
@@ -839,23 +838,6 @@ app.delete('/api/admin/events/:eventId', requireAdmin, async (req, res) => {
   } catch { res.status(503).json({ message: 'Could not delete campus event.' }) }
 })
 
-app.get('/api/student/community', requireStudent, async (req, res) => {
-  try {
-    const records = await communityPosts.find({}).sort({ createdAt: -1 }).limit(100).toArray()
-    res.json({ posts: records.map(({ _id, ...item }) => ({ ...item, postId: _id.toString() })) })
-  } catch { res.status(503).json({ message: 'Could not load community posts.' }) }
-})
-
-app.post('/api/student/community', requireStudent, async (req, res) => {
-  const body = String(req.body?.body || '').trim()
-  if (body.length < 3 || body.length > 1000) return res.status(400).json({ message: 'A community post must be 3 to 1,000 characters.' })
-  try {
-    const post = { author: req.account.name, studentId: req.account.studentId, major: req.account.major, body, createdAt: new Date() }
-    const result = await communityPosts.insertOne(post)
-    res.status(201).json({ post: { ...post, postId: result.insertedId.toString() } })
-  } catch { res.status(503).json({ message: 'Could not publish your post.' }) }
-})
-
 app.use('/api', (_req, res) => {
   res.status(404).json({ message: 'API route not found. Restart or redeploy the server to load the latest API routes.' })
 })
@@ -892,7 +874,6 @@ async function start() {
   await enrollments.createIndex({ studentId: 1, term: 1, submittedAt: -1 })
   await ledger.createIndex({ studentId: 1, postedAt: -1 })
   await campusEvents.createIndex({ date: 1 })
-  await communityPosts.createIndex({ createdAt: -1 })
   await advisories.createIndex({ major: 1, createdAt: -1 })
   await announcements.createIndex({ createdAt: -1 })
   await classSchedules.createIndex({ major: 1, term: 1, day: 1 })

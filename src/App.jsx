@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, BookOpen,
   Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock3,
-  Eye, EyeOff, GraduationCap, LayoutDashboard, Library, LockKeyhole, LogOut, Menu,
+  Eye, EyeOff, GraduationCap, LayoutDashboard, LockKeyhole, LogOut, Menu,
   MoreHorizontal, Moon, Search, Settings2, Sparkles, Sun, Users, UserPlus, ShieldCheck,
   CalendarRange, BookMarked, ChartNoAxesCombined, Receipt, CreditCard,
-  HeartPulse, BellRing, X,
+  BellRing, X,
 } from 'lucide-react'
 import PortalPage, { DashboardDetails } from './PortalPages.jsx'
 
@@ -644,7 +644,7 @@ function App() {
   ] : [
     { title: 'MENU', links: [{ name: 'Overview', icon: LayoutDashboard }, { name: 'Notifications', icon: BellRing }, { name: 'Account Settings', icon: Settings2 }] },
     { title: 'ACADEMICS', links: [{ name: 'Class Schedule', icon: CalendarRange }, { name: 'Academic Evaluation', icon: ChartNoAxesCombined }] },
-    { title: 'STUDENT SERVICES', links: [{ name: 'Announcements', icon: BellRing }, { name: 'Community & Services', icon: HeartPulse }, { name: 'BSED Majors', icon: GraduationCap }] },
+    { title: 'STUDENT SERVICES', links: [{ name: 'Announcements', icon: BellRing }, { name: 'BSED Majors', icon: GraduationCap }] },
   ]
   const selectNav = (name) => { setActive(name); setMobileNav(false) }
   useEffect(() => {

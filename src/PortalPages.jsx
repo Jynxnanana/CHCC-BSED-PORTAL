@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowDownToLine, ArrowRight, BellRing, BookOpen, CalendarDays, Check, ChevronDown,
-  Clock3, CreditCard, Download, FileText, HeartPulse, Library, MessageCircle,
-  Printer, Receipt, Search, Send, ShieldCheck,
+  Clock3, CreditCard, Download, FileText,
+  Printer, Receipt, Search, ShieldCheck,
 } from 'lucide-react'
 
 const subjects = [
@@ -245,17 +245,6 @@ function DatabaseAnnouncementsPage() {
   return <><PageHeading eyebrow="SCHOOL UPDATES · OFFICIAL NOTICES" title="Announcements" description="Official updates from the school administrator." />{loading ? <Panel><div className="feature-empty">Loading announcements...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : announcements.length ? <div className="notification-list">{announcements.map(item => <Panel key={item.announcementId}><span className="notification-date">{item.authorName || 'School Administrator'} · {new Date(item.updatedAt || item.createdAt).toLocaleString()}</span><h3>{item.title}</h3><p>{item.body}</p></Panel>)}</div> : <Panel><div className="feature-empty"><BellRing size={22} /><strong>No announcements yet</strong><span>Official school updates will appear here when they are posted.</span></div></Panel>}</>
 }
 
-function DatabaseCommunityPage({ onNotice }) {
-  const [posts, setPosts] = useState([])
-  const [body, setBody] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const load = () => fetch('/api/student/community', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load the student community.'); setPosts(result.posts) })
-  useEffect(() => { load().catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
-  const publish = async event => { event.preventDefault(); setSaving(true); setError(''); try { const response = await fetch('/api/student/community', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ body }) }); const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not publish your post.'); setPosts(current => [result.post, ...current]); setBody(''); onNotice('Your post was shared with the BSED community.') } catch (publishError) { setError(publishError.message) } finally { setSaving(false) } }
-  return <><PageHeading eyebrow="CAMPUS LIFE · STUDENT SUPPORT" title="Community & Services" description="Share updates with the BSED community and find study resources." /><div className="services-grid"><Panel className="forum-panel"><div className="panel-title-row"><div><h3>Student community</h3><p>Posts are visible to signed-in student accounts.</p></div><MessageCircle size={18} /></div><form className="forum-compose" onSubmit={publish}><textarea required minLength={3} maxLength={1000} placeholder="Share an update or ask the community..." value={body} onChange={event => setBody(event.target.value)} /><button className="feature-action feature-primary" disabled={saving}><Send size={14} /> {saving ? 'Posting...' : 'Post'}</button></form>{error && <div className="admin-error" role="alert">{error}</div>}{loading ? <div className="feature-empty">Loading community posts...</div> : posts.length ? <div className="community-posts">{posts.map(item => <article className="community-post" key={item.postId}><div className="community-avatar">{item.author.slice(0, 1)}</div><div><strong>{item.author}</strong><small>{item.major} · {new Date(item.createdAt).toLocaleString()}</small><p>{item.body}</p></div></article>)}</div> : <div className="feature-empty">No posts yet. Start the conversation.</div>}</Panel><div className="service-cards"><Panel><span className="service-icon library-service"><Library size={19} /></span><h3>Open study resources</h3><p>Explore public education research, textbooks, and literature.</p><div className="library-links"><a href="https://eric.ed.gov/" target="_blank" rel="noreferrer">ERIC · Education research <ArrowRight size={13} /></a><a href="https://openstax.org/" target="_blank" rel="noreferrer">OpenStax · Free textbooks <ArrowRight size={13} /></a><a href="https://www.gutenberg.org/" target="_blank" rel="noreferrer">Project Gutenberg · Literature <ArrowRight size={13} /></a></div></Panel><Panel><span className="service-icon health-service"><HeartPulse size={19} /></span><h3>Campus clinic</h3><p>For clinic hours and health concerns, contact the college clinic directly. Emergency care is not handled through this portal.</p></Panel></div></div></>
-}
 
 function DatabasePaymentPage() {
   const [balance, setBalance] = useState(null)
@@ -264,12 +253,6 @@ function DatabasePaymentPage() {
   return <><PageHeading eyebrow="STUDENT FINANCE · CASHIER SERVICE" title="Online Payment" description="Check the posted balance on your student ledger." />{error && <div className="admin-error" role="alert">{error}</div>}<div className="payment-warning"><ShieldCheck size={17} /><span><strong>No payment gateway is connected.</strong> This portal cannot collect or confirm money. Pay through the school's official cashier instructions; the cashier can post verified payments to your ledger.</span></div><Panel><h3>Current ledger balance</h3><div className="payment-amount">{balance === null ? 'Loading...' : `₱${Number(balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}</div><p className="feature-muted">A successful payment must be confirmed by the cashier before it appears as a credit on your ledger.</p></Panel></>
 }
 
-function ServicesPage({ onNotice }) {
-  const [posts, setPosts] = useState([{ author: 'BSED Student Council', time: 'Today · 9:30 AM', text: 'Educ Week volunteers: sign-up is open at the College of Education office.', replies: 8 }, { author: 'College of Education', time: 'Yesterday · 3:15 PM', text: 'Peer tutoring sessions for major subjects start next week. Check with your department coordinator.', replies: 4 }])
-  const [postText, setPostText] = useState('')
-  const publish = event => { event.preventDefault(); if (!postText.trim()) return; setPosts(current => [{ author: 'You', time: 'Just now', text: postText.trim(), replies: 0 }, ...current]); setPostText(''); onNotice('Your community post was added to this local preview.') }
-  return <><PageHeading eyebrow="CAMPUS LIFE · STUDENT SUPPORT" title="Community & Services" description="Connect with fellow educators and find campus support resources." /><div className="services-grid"><Panel className="forum-panel"><div className="panel-title-row"><div><h3>Student community</h3><p>Share updates with the BSED community.</p></div><MessageCircle size={18} /></div><form className="forum-compose" onSubmit={publish}><textarea placeholder="Share an update or ask the community..." value={postText} onChange={event => setPostText(event.target.value)} /><button className="feature-action feature-primary"><Send size={14} /> Post</button></form><div className="community-posts">{posts.map((post, index) => <article className="community-post" key={`${post.time}-${index}`}><div className="community-avatar">{post.author.slice(0, 1)}</div><div><strong>{post.author}</strong><small>{post.time}</small><p>{post.text}</p><span>{post.replies} replies · BSED Community</span></div></article>)}</div></Panel><div className="service-cards"><Panel><span className="service-icon library-service"><Library size={19} /></span><h3>College library & study resources</h3><p>Open education research, textbooks, and public domain literature.</p><div className="library-links"><a href="https://eric.ed.gov/" target="_blank" rel="noreferrer">ERIC · Education research <ArrowRight size={13} /></a><a href="https://openstax.org/" target="_blank" rel="noreferrer">OpenStax · Free textbooks <ArrowRight size={13} /></a><a href="https://www.gutenberg.org/" target="_blank" rel="noreferrer">Project Gutenberg · Literature <ArrowRight size={13} /></a></div><button className="feature-action" onClick={() => onNotice('Ask the librarian or school IT office to add the official campus library portal.')}>Campus library portal <ArrowRight size={14} /></button></Panel><Panel><span className="service-icon health-service"><HeartPulse size={19} /></span><h3>Healthcare services</h3><p>Campus clinic hours: Monday–Friday, 8:00 AM–5:00 PM.</p><button className="feature-action" onClick={() => onNotice('Clinic callback request noted in this preview. Contact the campus clinic for urgent care.')}>Request clinic callback <ArrowRight size={14} /></button></Panel></div></div></>
-}
 
 function NotificationsPage() {
   const [updates, setUpdates] = useState([])
@@ -340,7 +323,6 @@ export default function PortalPage({ active, student, onNotice, selectedMajor, m
     'Report of Grades': <GradesPage />,
     'Academic Evaluation': <DatabaseEvaluationPage />,
     Announcements: <DatabaseAnnouncementsPage />,
-    'Community & Services': <DatabaseCommunityPage onNotice={onNotice} />,
     'BSED Majors': <MajorsPage selectedMajor={selectedMajor} majorCounts={majorCounts} />,
     Notifications: <NotificationsPage />,
     'Account Settings': <AccountSettingsPage student={student} onNotice={onNotice} />,
