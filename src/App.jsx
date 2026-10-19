@@ -10,11 +10,11 @@ import {
 import PortalPage, { DashboardDetails } from './PortalPages.jsx'
 
 const majors = [
-  { name: 'English', code: 'ENG', students: 128, color: 'violet', icon: 'Aa' },
-  { name: 'Filipino', code: 'FIL', students: 96, color: 'rose', icon: '文' },
-  { name: 'Math', code: 'MTH', students: 112, color: 'blue', icon: 'π' },
-  { name: 'Social Science', code: 'SS', students: 103, color: 'amber', icon: '◎' },
-  { name: 'BEED', code: 'BEED', students: 84, color: 'green', icon: 'B' },
+  { name: 'English', code: 'ENG', color: 'violet', icon: 'Aa' },
+  { name: 'Filipino', code: 'FIL', color: 'rose', icon: '文' },
+  { name: 'Math', code: 'MTH', color: 'blue', icon: 'π' },
+  { name: 'Social Science', code: 'SS', color: 'amber', icon: '◎' },
+  { name: 'BEED', code: 'BEED', color: 'green', icon: 'B' },
 ]
 const studentYears = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 const orgPositions = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Public Information Officer', 'Representative', 'Member']
@@ -589,6 +589,7 @@ function App() {
   const [student, setStudent] = useState(null)
   const [homeAdvisories, setHomeAdvisories] = useState([])
   const [homeAnnouncements, setHomeAnnouncements] = useState([])
+  const [majorCounts, setMajorCounts] = useState({ counts: {}, loading: false, error: false })
   const [authReady, setAuthReady] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
   const [idInput, setIdInput] = useState('')
@@ -611,6 +612,9 @@ function App() {
   const studentId = student?.studentId || ''
   useEffect(() => () => { if (noticeTimer.current) window.clearTimeout(noticeTimer.current) }, [])
   useEffect(() => {
+    if (student?.role === 'student' && majors.some(major => major.name === student.major)) setSelectedMajor(student.major)
+  }, [student?.studentId, student?.major, student?.role])
+  useEffect(() => {
     if (!showAnniversary) return
     const closeOnEscape = event => { if (event.key === 'Escape') setShowAnniversary(false) }
     window.addEventListener('keydown', closeOnEscape)
@@ -620,6 +624,14 @@ function App() {
     if (student?.role !== 'student') { setHomeAdvisories([]); setHomeAnnouncements([]); return }
     Promise.all(['/api/student/advisories', '/api/student/announcements'].map(url => fetch(url, { credentials: 'include' }).then(response => response.ok ? response.json() : {})))
       .then(([advisoryData, announcementData]) => { setHomeAdvisories(advisoryData.advisories || []); setHomeAnnouncements(announcementData.announcements || []) }).catch(() => {})
+  }, [student?.studentId, student?.role])
+  useEffect(() => {
+    if (student?.role !== 'student') { setMajorCounts({ counts: {}, loading: false, error: false }); return }
+    setMajorCounts({ counts: {}, loading: true, error: false })
+    fetch('/api/student/majors', { credentials: 'include' })
+      .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load major counts.'); return result })
+      .then(result => setMajorCounts({ counts: Object.fromEntries((result.majors || []).map(item => [item.name, item.count])), loading: false, error: false }))
+      .catch(() => setMajorCounts({ counts: {}, loading: false, error: true }))
   }, [student?.studentId, student?.role])
   const studentName = student?.name || ''
   const studentInitials = studentName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || studentId.slice(-2)
@@ -706,12 +718,17 @@ function App() {
           {active === 'Teacher Dashboard' && student.role === 'teacher' ? <TeacherDashboard teacher={student} /> : active === 'Attendance' && student.role === 'teacher' ? <TeacherAttendance /> : active === 'Gradebook' && student.role === 'teacher' ? <TeacherGradebook teacher={student} /> : active === 'Major Advisories' && student.role === 'teacher' ? <TeacherAdvisories teacher={student} /> : active === 'Teacher Accounts' && student.role === 'admin' ? <TeacherAccounts setNotice={setNotice} /> : active === 'Students' && student.role === 'admin' ? <AdminStudents setNotice={setNotice} /> : active === 'Class Schedules' && student.role === 'admin' ? <AdminSchedules setNotice={setNotice} /> : ['Grade Approvals', 'Enrollment Review', 'Curriculum Catalog', 'Student Ledger Admin', 'Announcements'].includes(active) && student.role === 'admin' ? <AdminWorkflow active={active} setNotice={setNotice} /> : active === 'Overview' ? <>
           <article className="panel announcements-panel"><div className="panel-heading"><div><span className="section-kicker">SCHOOL UPDATES</span><h2>Latest announcements</h2></div><button className="subtle-link" onClick={() => selectNav('Announcements')}>View all <ArrowRight size={14} /></button></div><div className="announcement-list">{homeAnnouncements.slice(0, 4).map((post, index) => <div className="announcement" key={post.announcementId || `${post.createdAt}-${index}`}><div className="avatar avatar-violet">{post.authorName?.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'CH'}</div><div className="announcement-body"><div className="announcement-meta"><strong>{post.authorName || 'School Administrator'}</strong><span>·</span><span>{new Date(post.updatedAt || post.createdAt).toLocaleDateString()}</span></div><h3>{post.title}</h3><p>{post.body}</p></div></div>)}{homeAnnouncements.length === 0 && <p className="feature-muted">No school announcements have been posted yet.</p>}</div></article>
           <DashboardDetails student={student} />
-          <section className="content-grid"><div className="left-column"><article className="panel majors-panel"><div className="panel-heading"><div><span className="section-kicker">FIND YOUR PEOPLE</span><h2>BSED majors</h2></div><button className="icon-button panel-more" aria-label="More major options"><MoreHorizontal size={18} /></button></div><p className="panel-description">Explore your department and connect with fellow future educators.</p><div className="major-list">{majors.map(major => <button key={major.code} className={`major-row ${selectedMajor === major.name ? 'major-selected' : ''}`} onClick={() => { setSelectedMajor(major.name); setNotice(`${major.name} major selected.`) }}><span className={`major-icon major-${major.color}`}>{major.icon}</span><span className="major-copy"><strong>{major.name}</strong><small>{major.students} students</small></span><ArrowRight size={15} className="major-arrow" /></button>)}</div><button className="all-majors-button" onClick={() => selectNav('BSED Majors')}>Explore all majors <ArrowRight size={15} /></button></article></div>
+          <section className="content-grid"><div className="left-column"><article className="panel majors-panel">
+  <div className="panel-heading"><div><span className="section-kicker">FIND YOUR PEOPLE</span><h2>BSED majors</h2></div></div>
+  <p className="panel-description">Explore each program and see the number of student portal accounts assigned to it.</p>
+  <div className="major-list">{majors.map(major => <button key={major.code} className="major-row" onClick={() => { setSelectedMajor(major.name); selectNav('BSED Majors') }}><span className={`major-icon major-${major.color}`}>{major.icon}</span><span className="major-copy"><strong>{major.name}</strong><small>{majorCounts.loading ? 'Loading account count…' : majorCounts.error ? 'Account count unavailable' : `${majorCounts.counts[major.name] ?? 0} student accounts`}</small></span><ArrowRight size={15} className="major-arrow" /></button>)}</div>
+  <button className="all-majors-button" onClick={() => selectNav('BSED Majors')}>Explore all majors <ArrowRight size={15} /></button>
+</article></div>
 
           <div className="right-column"><article className="panel quick-panel"><div className="panel-heading"><div><span className="section-kicker">FROM YOUR MAJOR</span><h2>Teacher advisories</h2></div><BellRing size={17} className="quick-calendar" /></div><div className="event-list">{homeAdvisories.slice(0, 4).map((post, index) => <div className="event-row" key={`${post.createdAt}-${index}`}><div className="avatar avatar-violet">{post.teacherName?.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'T'}</div><div className="event-copy"><strong>{post.title}</strong><small>{post.teacherName} · {new Date(post.createdAt).toLocaleDateString()}</small></div></div>)}{homeAdvisories.length === 0 && <p className="feature-muted">No teacher advisories for your major yet.</p>}</div><button className="text-link events-link" onClick={() => selectNav('Notifications')}>See all advisories <ArrowRight size={15} /></button></article></div></section>
 
           <footer className="page-footer"><span>Made for future educators <span className="footer-heart">♥</span></span><span>Need help? <button onClick={() => setNotice('Contact your school administrator for support.')}>Contact support</button></span></footer>
-          </> : <PortalPage active={active} student={student} onNotice={setNotice} />}
+          </> : <PortalPage active={active} student={student} onNotice={setNotice} selectedMajor={selectedMajor} majorCounts={majorCounts} />}
         </div>
       </main>
       {showAnniversary && <div className="anniversary-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setShowAnniversary(false) }}>

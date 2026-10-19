@@ -144,7 +144,7 @@ function EvaluationPage() {
   return <><PageHeading eyebrow="ACADEMICS · CURRICULUM TRACKER" title="Academic Evaluation" description="Track completed, failed, credited, and incomplete curriculum requirements." /><Panel className="evaluation-progress"><div><span className="metric-label">CURRICULUM COMPLETION</span><strong>36 <small>of 54 subjects</small></strong><span className="metric-foot">66.7% complete · 18 subjects remaining</span></div><div className="evaluation-track"><i style={{ width: '66.7%' }} /></div><div className="evaluation-key"><StatusPill value="Passed" /><StatusPill value="Failed" /><StatusPill value="Credited" /><StatusPill value="Incomplete" /></div></Panel><div className="evaluation-terms">{semesterGroups.map(group => <Panel key={group.term}><div className="evaluation-term-heading"><h3>{group.term}</h3><span>{group.items.filter(item => item[2] === 'Passed' || item[2] === 'Credited').length}/{group.items.length} completed</span></div><DataTable headings={['SUBJECT', 'TITLE', 'STATUS']} rows={group.items.map(([code, name, status]) => [code, name, <StatusPill value={status} />])} /></Panel>)}</div><div className="feature-note"><ShieldCheck size={16} /> Sample curriculum preview; confirm requirements and progress against your official evaluation with your academic adviser.</div></>
 }
 
-function MajorsPage() {
+function MajorsPage({ selectedMajor, majorCounts }) {
   const [query, setQuery] = useState('')
   const majorDetails = [
     ['English', 'ENG', 'violet', 'Aa', 'Language, literature, and communication', 'Language and Linguistics · Teaching Literature · Creative Writing'],
@@ -154,7 +154,7 @@ function MajorsPage() {
     ['BEED', 'BEED', 'green', 'B', 'Elementary education and child-centered teaching', 'Child Development · General Education · Teaching Practice'],
   ]
   const filtered = majorDetails.filter(item => item.join(' ').toLowerCase().includes(query.toLowerCase()))
-  return <><PageHeading eyebrow="SCHOOL OF EDUCATION" title="Explore Programs" description="Explore the education programs and their focus areas." /><div className="explorer-search"><Search size={16} /><input aria-label="Search programs" placeholder="Search programs and subject areas..." value={query} onChange={event => setQuery(event.target.value)} /></div><div className="major-explorer-grid">{filtered.map(([name, code, color, icon, focus, subjectsList]) => <Panel className="major-explorer-card" key={code}><div className="major-explorer-card-top"><span className={`major-icon major-${color}`}>{icon}</span><span>{code}</span></div><h3>{name}</h3><p>{focus}</p><strong>Sample subject areas</strong><small>{subjectsList}</small><span className="major-student-total">{({ English: 128, Filipino: 96, Math: 112, 'Social Science': 103, BEED: 84 })[name]} students in the community</span></Panel>)}</div><div className="feature-note"><ShieldCheck size={16} /> Program descriptions and community counts are sample preview content, not official enrollment totals.</div>{filtered.length === 0 && <div className="feature-empty">No programs match “{query}”.</div>}</>
+  return <><PageHeading eyebrow="SCHOOL OF EDUCATION" title="Explore Programs" description="Explore the education programs and their focus areas." /><div className="explorer-search"><Search size={16} /><input aria-label="Search programs" placeholder="Search programs and subject areas..." value={query} onChange={event => setQuery(event.target.value)} /></div><div className="major-explorer-grid">{filtered.map(([name, code, color, icon, focus, subjectsList]) => <Panel className={`major-explorer-card ${selectedMajor === name ? 'major-explorer-selected' : ''}`} key={code}><div className="major-explorer-card-top"><span className={`major-icon major-${color}`}>{icon}</span><span>{code}</span></div><h3>{name}</h3><p>{focus}</p><strong>Subject areas</strong><small>{subjectsList}</small><span className="major-student-total">{majorCounts.loading ? 'Loading student count…' : majorCounts.error ? 'Student count unavailable' : `${majorCounts.counts[name] ?? 0} student portal accounts`}</span></Panel>)}</div><div className="feature-note"><ShieldCheck size={16} /> Counts use student accounts currently assigned to each major. Program summaries and subject areas are general descriptions.</div>{filtered.length === 0 && <div className="feature-empty">No programs match “{query}”.</div>}</>
 }
 
 function LedgerPage({ onNotice }) {
@@ -330,7 +330,7 @@ function AccountSettingsPage({ student, onNotice }) {
   return <><PageHeading eyebrow="ACCOUNT SECURITY" title="Account Settings" description="Update the password for your student portal account." /><Panel className="settings-panel"><div className="admin-panel-title"><span className="admin-panel-icon"><ShieldCheck size={17} /></span><div><h3>Change password</h3><p>Signed in as {student?.name} · {student?.role === 'admin' ? 'Administrator' : student?.role === 'teacher' ? 'Teacher' : student?.studentId}</p></div></div><form className="admin-form" onSubmit={updatePassword}><label htmlFor="current-password-settings">Current password</label><input id="current-password-settings" required type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /><label htmlFor="new-password-settings">New password</label><input id="new-password-settings" required minLength={minimumLength} type="password" autoComplete="new-password" placeholder={`At least ${minimumLength} characters`} value={newPassword} onChange={event => setNewPassword(event.target.value)} />{error && <div className="admin-error" role="alert">{error}</div>}{saved && <div className="password-saved"><Check size={14} /> Password updated successfully.</div>}<button className="login-submit" disabled={saving}>{saving ? 'Updating...' : 'Update password'} {!saving && <ArrowRight size={15} />}</button></form></Panel></>
 }
 
-export default function PortalPage({ active, student, onNotice }) {
+export default function PortalPage({ active, student, onNotice, selectedMajor, majorCounts }) {
   const pages = useMemo(() => ({
     'Class Schedule': <ClassSchedulePage student={student} />,
     'My Schedule': <ClassSchedulePage student={student} />,
@@ -341,9 +341,9 @@ export default function PortalPage({ active, student, onNotice }) {
     'Academic Evaluation': <DatabaseEvaluationPage />,
     Announcements: <DatabaseAnnouncementsPage />,
     'Community & Services': <DatabaseCommunityPage onNotice={onNotice} />,
-    'BSED Majors': <MajorsPage />,
+    'BSED Majors': <MajorsPage selectedMajor={selectedMajor} majorCounts={majorCounts} />,
     Notifications: <NotificationsPage />,
     'Account Settings': <AccountSettingsPage student={student} onNotice={onNotice} />,
-  }), [active, student, onNotice])
+  }), [active, student, onNotice, selectedMajor, majorCounts])
   return pages[active] || <DashboardDetails student={student} />
 }

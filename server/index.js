@@ -113,6 +113,19 @@ app.get('/api/majors', (_req, res) => {
   ])
 })
 
+app.get('/api/student/majors', requireStudent, async (_req, res) => {
+  try {
+    const counts = await students.aggregate([
+      { $match: { major: { $in: validMajors } } },
+      { $group: { _id: '$major', count: { $sum: 1 } } },
+    ]).toArray()
+    const countByMajor = Object.fromEntries(counts.map(({ _id, count }) => [_id, count]))
+    res.json({ majors: validMajors.map(name => ({ name, count: countByMajor[name] || 0 })) })
+  } catch {
+    res.status(503).json({ message: 'Could not load student counts by major.' })
+  }
+})
+
 app.post('/api/auth/login', async (req, res) => {
   const login = String(req.body?.login || req.body?.studentId || '').trim()
   const password = String(req.body?.password || '')

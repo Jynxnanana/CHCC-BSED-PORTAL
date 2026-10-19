@@ -228,6 +228,11 @@
   transition: transform .22s cubic-bezier(.2, .7, .25, 1);
 }
 
+.major-row:focus { outline: none; }
+.major-row:focus-visible { outline: 3px solid rgba(128, 104, 232, .62); outline-offset: 2px; }
+.major-explorer-selected { border-color: rgba(114, 88, 233, .48) !important; box-shadow: 0 0 0 2px rgba(128, 104, 232, .13), 0 8px 22px rgba(43, 53, 100, .1) !important; }
+.theme-dark .major-explorer-selected { border-color: rgba(165, 148, 255, .56) !important; box-shadow: 0 0 0 2px rgba(165, 148, 255, .17), 0 8px 22px rgba(0, 0, 0, .25) !important; }
+
 .schedule-event,
 .nav-link,
 .icon-button,
