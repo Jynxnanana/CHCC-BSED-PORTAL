@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, BookOpen, CalendarDays,
+  Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, BookOpen,
   Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock3,
   Eye, EyeOff, GraduationCap, LayoutDashboard, Library, LockKeyhole, LogOut, Menu,
   MoreHorizontal, Moon, Search, Settings2, Sparkles, Sun, Users, UserPlus, ShieldCheck,
@@ -19,16 +19,35 @@ const majors = [
 const studentYears = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 const orgPositions = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Public Information Officer', 'Representative', 'Member']
 
-const events = [
-  { day: '26', month: 'SEP', title: 'Teaching Demo: Microteaching', meta: '10:00 AM · Education Hall', color: 'violet' },
-  { day: '28', month: 'SEP', title: 'BSED Majors’ General Assembly', meta: '1:30 PM · AVR, Main Building', color: 'orange' },
-  { day: '30', month: 'SEP', title: 'Deadline: Lesson Plan Portfolio', meta: '11:59 PM · Submit online', color: 'green' },
-]
-
-const announcements = [
-  { initials: 'CD', name: 'College of Education', time: '2 hours ago', text: 'Pre-registration for the student teaching orientation is now open. Please sign up through your major coordinator.', tag: 'ACADEMIC', color: 'violet' },
-  { initials: 'SC', name: 'Student Council', time: 'Yesterday', text: 'Calling all BSED students! Join us for the Educ Week kickoff this Friday. See you there, future educators!', tag: 'CAMPUS LIFE', color: 'orange' },
-]
+function EducationDoodles({ className = 'education-doodles' }) {
+  return <div className={className} aria-hidden="true">
+    <svg className="edu-doodle edu-book" viewBox="0 0 100 100" fill="none">
+      <path d="M50 24c-13-10-27-12-40-7v48c15-5 28-2 40 8 12-10 25-13 40-8V17c-13-5-27-3-40 7Z" />
+      <path d="M50 24v49M18 29c9-2 17 0 24 5M18 42c8-2 16 0 24 5M82 29c-9-2-17 0-24 5M82 42c-8-2-16 0-24 5" />
+    </svg>
+    <svg className="edu-doodle edu-cap" viewBox="0 0 100 100" fill="none">
+      <path d="m10 39 40-21 40 21-40 21-40-21Z" />
+      <path d="M26 49v17c14 11 34 11 48 0V49M88 40v24" />
+      <circle cx="88" cy="68" r="3" />
+    </svg>
+    <svg className="edu-doodle edu-pencil" viewBox="0 0 100 100" fill="none">
+      <g transform="rotate(27 50 50)">
+        <path d="m37 20 26 0v53L50 88 37 73V20Z" />
+        <path d="M37 31h26M37 70h26M45 20v-7h10v7M46 78l4 10 4-10" />
+      </g>
+    </svg>
+    <svg className="edu-doodle edu-bulb" viewBox="0 0 100 100" fill="none">
+      <path d="M34 43a16 16 0 1 1 32 0c0 8-5 12-8 18H42c-3-6-8-10-8-18ZM43 67h14M45 74h10M48 81h4" />
+      <path d="M50 13v-6M23 22l-5-5M77 22l5-5M17 48h-7M83 48h7" />
+    </svg>
+    <svg className="edu-doodle edu-spark edu-spark-one" viewBox="0 0 40 40" fill="none">
+      <path d="M20 3v34M3 20h34M8 8l24 24M32 8 8 32" />
+    </svg>
+    <svg className="edu-doodle edu-spark edu-spark-two" viewBox="0 0 40 40" fill="none">
+      <path d="M20 3v34M3 20h34M8 8l24 24M32 8 8 32" />
+    </svg>
+  </div>
+}
 
 function AdminStudents({ setNotice }) {
   const emptyForm = { studentId: '', name: '', major: 'English', section: '', yearLevel: '1st Year', organization: 'Major', orgPosition: 'Member', password: '' }
@@ -460,73 +479,116 @@ function AdminWorkflow({ active, setNotice }) {
   const [error, setError] = useState('')
   const [form, setForm] = useState({ major: 'English', courseCode: '', subject: '', units: '3', yearLevel: '1', term: '1st Semester' })
   const [finance, setFinance] = useState({ studentId: '', type: 'Charge', amount: '', detail: '', term: '', reference: '' })
-  const [eventForm, setEventForm] = useState({ title: '', date: '', location: '', description: '' })
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', body: '' })
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState('')
   const [busy, setBusy] = useState(false)
-  const endpoints = { 'Grade Approvals': '/api/admin/grade-approvals', 'Enrollment Review': '/api/admin/enrollments', 'Curriculum Catalog': '/api/admin/curriculum', 'Student Ledger Admin': '/api/admin/students', 'Campus Events': '/api/admin/events' }
+  const endpoints = { 'Grade Approvals': '/api/admin/grade-approvals', 'Enrollment Review': '/api/admin/enrollments', 'Curriculum Catalog': '/api/admin/curriculum', 'Student Ledger Admin': '/api/admin/students', Announcements: '/api/admin/announcements' }
+  const readApiResponse = async response => {
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.toLowerCase().includes('application/json')) {
+      await response.text()
+      throw new Error('The server has not loaded this API route yet. Restart “npm run server” locally, or deploy the latest code if this is Render.')
+    }
+    return response.json()
+  }
   const reload = async () => {
     setError('')
-    try { const response = await fetch(endpoints[active], { credentials: 'include' }); const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load records.'); const list = result.grades || result.enrollments || result.subjects || result.events || result.students || []; setRecords(list); if (result.students) setStudents(result.students) }
+    try { const response = await fetch(endpoints[active], { credentials: 'include' }); const result = await readApiResponse(response); if (!response.ok) throw new Error(result.message || 'Could not load records.'); const list = result.grades || result.enrollments || result.subjects || result.announcements || result.students || []; setRecords(list); if (result.students) setStudents(result.students) }
     catch (loadError) { setError(loadError.message) }
   }
   useEffect(() => { reload() }, [active])
   const act = async (url, method, body) => {
     setBusy(true); setError('')
-    try { const response = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, credentials: 'include', body: body ? JSON.stringify(body) : undefined }); const result = response.status === 204 ? {} : await response.json(); if (!response.ok) throw new Error(result.message || 'Could not save.'); await reload(); return result }
+    try { const response = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, credentials: 'include', body: body ? JSON.stringify(body) : undefined }); const result = response.status === 204 ? {} : await readApiResponse(response); if (!response.ok) throw new Error(result.message || 'Could not save.'); await reload(); return result }
     catch (actionError) { setError(actionError.message); return null } finally { setBusy(false) }
   }
-  const title = active === 'Grade Approvals' ? 'Grade approvals' : active === 'Enrollment Review' ? 'Enrollment review' : active === 'Curriculum Catalog' ? 'Curriculum catalog' : active === 'Student Ledger Admin' ? 'Student ledger entries' : 'Campus events'
-  return <section className="admin-students-view"><div className="admin-intro"><div><span className="section-kicker">ADMINISTRATION</span><h2>{title}</h2><p>Manage and review records stored in the portal database.</p></div><button className="admin-action-button" onClick={reload}>Refresh</button></div>{error && <div className="admin-error" role="alert">{error}</div>}
+  const title = active === 'Grade Approvals' ? 'Grade approvals' : active === 'Enrollment Review' ? 'Enrollment review' : active === 'Curriculum Catalog' ? 'Curriculum catalog' : active === 'Student Ledger Admin' ? 'Student ledger entries' : 'Announcements'
+  return <section className={`admin-students-view ${active === 'Announcements' ? 'announcement-admin-page' : ''}`}>{active === 'Announcements' ? <div className="announcement-admin-hero"><div className="announcement-hero-copy"><span className="announcement-hero-kicker"><BellRing size={15} /> SCHOOL COMMUNICATIONS</span><h2>Announcements</h2><p>Share important school updates with every student in one place.</p><span className="announcement-audience"><Users size={14} /> Visible to all students</span></div><div className="announcement-hero-art"><span className="announcement-art-orbit" /><BookOpen size={64} strokeWidth={1.25} /><span className="announcement-post-count">{records.length} published</span></div><button className="announcement-refresh" onClick={reload} aria-label="Refresh announcements"><Sparkles size={16} /><span>Refresh</span></button></div> : <div className="admin-intro"><div><span className="section-kicker">ADMINISTRATION</span><h2>{title}</h2><p>Manage and review records stored in the portal database.</p></div><button className="admin-action-button" onClick={reload}>Refresh</button></div>}{error && <div className="admin-error" role="alert">{error}</div>}
     {active === 'Grade Approvals' && <article className="panel admin-directory"><h3>Grades awaiting review</h3>{!records.length ? <div className="admin-empty">No grade records need review.</div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>STUDENT</th><th>CLASS</th><th>TERM</th><th>GRADE</th><th>DECISION</th></tr></thead><tbody>{records.map(item => <tr key={item.gradeId}><td>{item.studentName}<small className="table-subline">{item.studentId} · {item.major}</small></td><td>{item.courseCode} · {item.subject}</td><td>{item.term}</td><td>{item.grade}</td><td><div className="admin-row-actions"><button disabled={busy} className="admin-action-button" onClick={async () => { if (await act(`/api/admin/grade-approvals/${item.gradeId}`, 'PATCH', { decision: 'Approved' })) setNotice('Grade approved and released to student.') }}>Approve</button><button disabled={busy} className="admin-action-button danger" onClick={async () => { if (await act(`/api/admin/grade-approvals/${item.gradeId}`, 'PATCH', { decision: 'Needs correction', note: 'Please review and resubmit this grade.' })) setNotice('Grade returned for correction.') }}>Return</button></div></td></tr>)}</tbody></table></div>}</article>}
     {active === 'Enrollment Review' && <article className="panel admin-directory"><h3>Submitted registrations</h3>{!records.length ? <div className="admin-empty">No registration requests yet.</div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>STUDENT</th><th>TERM / LOAD</th><th>CLASSES</th><th>STATUS</th><th>REVIEW</th></tr></thead><tbody>{records.map(item => <tr key={item.enrollmentId}><td>{item.studentName}<small className="table-subline">{item.studentId} · {item.section || item.major}</small></td><td>{item.term}<small className="table-subline">{item.units} units</small></td><td>{item.classes.map(classItem => classItem.courseCode).join(', ')}</td><td>{item.status}</td><td>{item.status === 'Pending' && <div className="admin-row-actions"><button disabled={busy} className="admin-action-button" onClick={async () => { if (await act(`/api/admin/enrollments/${item.enrollmentId}`, 'PATCH', { status: 'Approved' })) setNotice('Registration approved.') }}>Approve</button><button disabled={busy} className="admin-action-button danger" onClick={async () => { if (await act(`/api/admin/enrollments/${item.enrollmentId}`, 'PATCH', { status: 'Needs correction' })) setNotice('Registration returned for correction.') }}>Return</button></div>}</td></tr>)}</tbody></table></div>}</article>}
     {active === 'Curriculum Catalog' && <><article className="panel admin-form-panel"><form className="admin-form" onSubmit={async event => { event.preventDefault(); const result = await act('/api/admin/curriculum', 'POST', { ...form, units: Number(form.units), yearLevel: Number(form.yearLevel) }); if (result) { setForm(current => ({ ...current, courseCode: '', subject: '' })); setNotice('Curriculum requirement added.') } }}><label>Major</label><select value={form.major} onChange={event => setForm({ ...form, major: event.target.value })}>{majors.map(item => <option key={item.code}>{item.name}</option>)}</select><label>Course code</label><input required value={form.courseCode} onChange={event => setForm({ ...form, courseCode: event.target.value })} /><label>Subject</label><input required value={form.subject} onChange={event => setForm({ ...form, subject: event.target.value })} /><label>Units / year level / term</label><div className="admin-row-actions"><input type="number" min="1" max="12" value={form.units} onChange={event => setForm({ ...form, units: event.target.value })} /><input type="number" min="1" max="4" value={form.yearLevel} onChange={event => setForm({ ...form, yearLevel: event.target.value })} /><input value={form.term} onChange={event => setForm({ ...form, term: event.target.value })} /></div><button className="login-submit" disabled={busy}>Add curriculum subject</button></form></article><article className="panel admin-directory"><h3>Official requirements</h3>{!records.length ? <div className="admin-empty">Add requirements verified by the academic department.</div> : records.map(item => <div className="teacher-advisory-item" key={item.curriculumId}><div><strong>{item.major} · {item.courseCode}</strong><span>{item.subject} · {item.units} units · Year {item.yearLevel}, {item.term}</span></div><button className="admin-action-button danger" onClick={async () => { if (await act(`/api/admin/curriculum/${item.curriculumId}`, 'DELETE')) setNotice('Curriculum requirement removed.') }}>Delete</button></div>)}</article></>}
     {active === 'Student Ledger Admin' && <><article className="panel admin-form-panel"><form className="admin-form" onSubmit={async event => { event.preventDefault(); const result = await act('/api/admin/ledger', 'POST', { ...finance, amount: Number(finance.amount) }); if (result) { setFinance(current => ({ ...current, amount: '', detail: '', reference: '' })); setNotice('Ledger entry posted.') } }}><label>Student</label><select required value={finance.studentId} onChange={event => setFinance({ ...finance, studentId: event.target.value })}><option value="">Select student</option>{students.map(item => <option key={item.studentId} value={item.studentId}>{item.name} · {item.studentId}</option>)}</select><label>Entry type</label><select value={finance.type} onChange={event => setFinance({ ...finance, type: event.target.value })}><option>Charge</option><option>Payment</option></select><label>Amount (PHP)</label><input required type="number" min="0.01" step="0.01" value={finance.amount} onChange={event => setFinance({ ...finance, amount: event.target.value })} /><label>Academic term</label><input required value={finance.term} onChange={event => setFinance({ ...finance, term: event.target.value })} /><label>Entry details</label><input required value={finance.detail} onChange={event => setFinance({ ...finance, detail: event.target.value })} /><label>Cashier receipt reference (required for payment)</label><input required={finance.type === 'Payment'} value={finance.reference} onChange={event => setFinance({ ...finance, reference: event.target.value })} /><button className="login-submit" disabled={busy}>Post ledger entry</button></form></article><p className="feature-note">This records cashier-verified charges and payments. It does not collect or process money.</p></>}
-    {active === 'Campus Events' && <><article className="panel admin-form-panel"><form className="admin-form" onSubmit={async event => { event.preventDefault(); const result = await act('/api/admin/events', 'POST', eventForm); if (result) { setEventForm({ title: '', date: '', location: '', description: '' }); setNotice('Campus event published.') } }}><label>Event title</label><input required value={eventForm.title} onChange={event => setEventForm({ ...eventForm, title: event.target.value })} /><label>Date</label><input required type="date" value={eventForm.date} onChange={event => setEventForm({ ...eventForm, date: event.target.value })} /><label>Location</label><input value={eventForm.location} onChange={event => setEventForm({ ...eventForm, location: event.target.value })} /><label>Description</label><textarea value={eventForm.description} onChange={event => setEventForm({ ...eventForm, description: event.target.value })} /><button className="login-submit" disabled={busy}>Publish event</button></form></article><article className="panel admin-directory">{records.map(item => <div className="teacher-advisory-item" key={item.eventId}><div><strong>{item.title}</strong><span>{item.date} · {item.location}</span><p>{item.description}</p></div><button className="admin-action-button danger" onClick={async () => { if (await act(`/api/admin/events/${item.eventId}`, 'DELETE')) setNotice('Event deleted.') }}>Delete</button></div>)}</article></>}
+    {active === 'Announcements' && <div className="announcement-workspace">
+      <article className="panel announcement-compose-card">
+        <div className="announcement-compose-heading"><span className="announcement-compose-icon"><BellRing size={20} /></span><div><span className="announcement-compose-kicker">{editingAnnouncementId ? 'UPDATE SCHOOL NOTICE' : 'CREATE A POST'}</span><h3>{editingAnnouncementId ? 'Edit announcement' : 'Write an announcement'}</h3><p>Keep students informed with clear, timely updates.</p></div></div>
+        <form className="admin-form announcement-compose-form" onSubmit={async event => { event.preventDefault(); const editing = Boolean(editingAnnouncementId); const result = await act(editing ? `/api/admin/announcements/${editingAnnouncementId}` : '/api/admin/announcements', editing ? 'PATCH' : 'POST', announcementForm); if (result) { setAnnouncementForm({ title: '', body: '' }); setEditingAnnouncementId(''); setNotice(editing ? 'Announcement updated.' : 'Announcement published.') } }}>
+          <div className="announcement-field-heading"><label htmlFor="announcement-title">Title</label><span>{announcementForm.title.length}/120</span></div><input id="announcement-title" placeholder="Example: Class schedule update" required minLength={3} maxLength={120} value={announcementForm.title} onChange={event => setAnnouncementForm({ ...announcementForm, title: event.target.value })} />
+          <div className="announcement-field-heading"><label htmlFor="announcement-body">Message</label><span>{announcementForm.body.length}/3000</span></div><textarea id="announcement-body" placeholder="Write the details students need to know..." required minLength={5} maxLength={3000} rows={7} value={announcementForm.body} onChange={event => setAnnouncementForm({ ...announcementForm, body: event.target.value })} />
+          <div className="announcement-compose-footer"><span><Users size={14} /> Visible to all students</span><div>{editingAnnouncementId && <button type="button" className="admin-action-button" disabled={busy} onClick={() => { setEditingAnnouncementId(''); setAnnouncementForm({ title: '', body: '' }) }}>Cancel</button>}<button className="announcement-publish-button" disabled={busy}>{busy ? 'Saving...' : editingAnnouncementId ? 'Save changes' : 'Publish announcement'} {!busy && <ArrowRight size={16} />}</button></div></div>
+        </form>
+      </article>
+      <article className="panel admin-directory announcement-feed-card">
+        <div className="announcement-feed-heading"><div><span className="announcement-compose-kicker">SCHOOL NOTICEBOARD</span><h3>Published announcements</h3><p>Updates currently visible to students</p></div><span className="announcement-feed-count"><BellRing size={15} /> {records.length}</span></div>
+        {!records.length ? <div className="announcement-empty"><span><BookOpen size={25} /></span><strong>No announcements yet</strong><p>Your published school updates will appear here.</p></div> : <div className="announcement-feed-list">{records.map(item => <article className="admin-announcement-item" key={item.announcementId}><div className="admin-announcement-copy"><span className="announcement-type"><Sparkles size={12} /> SCHOOL UPDATE</span><h4>{item.title}</h4><span className="admin-announcement-date">{item.authorName || 'School Administrator'} · {new Date(item.updatedAt || item.createdAt).toLocaleString()}</span><p>{item.body}</p></div><div className="admin-row-actions"><button className="admin-action-button" disabled={busy} onClick={() => { setEditingAnnouncementId(item.announcementId); setAnnouncementForm({ title: item.title, body: item.body }); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Edit</button><button className="admin-action-button danger" disabled={busy} onClick={async () => { if (window.confirm(`Delete “${item.title}”?`)) { if (await act(`/api/admin/announcements/${item.announcementId}`, 'DELETE')) { if (editingAnnouncementId === item.announcementId) { setEditingAnnouncementId(''); setAnnouncementForm({ title: '', body: '' }) } setNotice('Announcement deleted.') } } }}>Delete</button></div></article>)}</div>}
+      </article>
+    </div>}
   </section>
 }
 function TeacherAdvisories({ teacher }) {
   const [advisories, setAdvisories] = useState([])
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [editingAdvisoryId, setEditingAdvisoryId] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const loadAdvisories = () => {
+  const loadAdvisories = async () => {
     setLoading(true)
-    fetch('/api/teacher/advisories', { credentials: 'include' })
-      .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load advisories.'); setAdvisories(result.advisories) })
-      .catch(loadError => setError(loadError.message))
-      .finally(() => setLoading(false))
+    setError('')
+    try {
+      const response = await fetch('/api/teacher/advisories', { credentials: 'include' })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.message || 'Could not load advisories.')
+      setAdvisories(result.advisories || [])
+    } catch (loadError) { setError(loadError.message) }
+    finally { setLoading(false) }
   }
   useEffect(() => { loadAdvisories() }, [])
+  const cancelEdit = () => { setEditingAdvisoryId(''); setTitle(''); setBody(''); setError(''); setNotice('') }
   const publishAdvisory = async event => {
     event.preventDefault()
+    const editing = Boolean(editingAdvisoryId)
     setSaving(true)
     setError('')
     setNotice('')
     try {
-      const response = await fetch('/api/teacher/advisories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ title, body }) })
+      const response = await fetch(editing ? `/api/teacher/advisories/${encodeURIComponent(editingAdvisoryId)}` : '/api/teacher/advisories', { method: editing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ title, body }) })
       const result = await response.json()
-      if (!response.ok) throw new Error(result.message || 'Could not publish the advisory.')
+      if (!response.ok) throw new Error(result.message || (editing ? 'Could not update the advisory.' : 'Could not publish the advisory.'))
+      setEditingAdvisoryId('')
       setTitle('')
       setBody('')
-      setNotice(`Advisory published for ${teacher.major} students.`)
+      setNotice(editing ? 'Your advisory was updated.' : `Advisory published for ${teacher.major} students.`)
       await loadAdvisories()
     } catch (saveError) { setError(saveError.message) }
     finally { setSaving(false) }
   }
+  const deleteAdvisory = async item => {
+    if (!window.confirm(`Delete your advisory "${item.title}"?`)) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await fetch(`/api/teacher/advisories/${encodeURIComponent(item.advisoryId)}`, { method: 'DELETE', credentials: 'include' })
+      if (!response.ok) { const result = await response.json(); throw new Error(result.message || 'Could not delete the advisory.') }
+      setAdvisories(current => current.filter(advisory => advisory.advisoryId !== item.advisoryId))
+      if (editingAdvisoryId === item.advisoryId) cancelEdit()
+      setNotice('Your advisory was deleted.')
+    } catch (deleteError) { setError(deleteError.message) }
+    finally { setSaving(false) }
+  }
   return <section className="admin-students-view teacher-dashboard">
-    <div className="admin-intro"><div><span className="section-kicker">TEACHER PORTAL · COMMUNICATIONS</span><h2>Major advisories</h2><p>Post updates for students in your assigned {teacher.major} major.</p></div><span className="admin-count"><BellRing size={16} /> {advisories.length} posts</span></div>
-    <article className="panel teacher-advisory-composer"><div className="admin-panel-title"><span className="admin-panel-icon"><BellRing size={17} /></span><div><h3>Publish an advisory</h3><p>Your post is shared with student accounts in {teacher.major}.</p></div></div><form className="admin-form" onSubmit={publishAdvisory}><label htmlFor="advisory-title">Title</label><input id="advisory-title" required minLength={5} maxLength={120} value={title} onChange={event => setTitle(event.target.value)} placeholder="Short announcement title" /><label htmlFor="advisory-body">Message</label><textarea id="advisory-body" required minLength={10} maxLength={1500} value={body} onChange={event => setBody(event.target.value)} placeholder="Write an update for your major students..." />{error && <div className="admin-error" role="alert">{error}</div>}{notice && <div className="password-saved" role="status">{notice}</div>}<button className="login-submit" disabled={saving}>{saving ? 'Publishing...' : 'Publish advisory'} {!saving && <ArrowRight size={15} />}</button></form></article>
-    <article className="panel admin-directory teacher-grade-records"><div className="admin-directory-heading"><div><h3>Recent advisories</h3><p>Most recent posts for your assigned major</p></div><button className="admin-refresh" onClick={loadAdvisories} aria-label="Refresh advisories"><Sparkles size={15} /></button></div>{error && !notice ? <div className="admin-error" role="alert">{error}</div> : loading ? <div className="admin-empty">Loading advisories...</div> : advisories.length === 0 ? <div className="admin-empty"><BellRing size={22} /><strong>No advisories yet</strong><span>Published updates will also appear in student Notifications.</span></div> : <div className="teacher-advisory-list">{advisories.map((item, index) => <article className="teacher-advisory-item" key={`${item.createdAt}-${index}`}><div><strong>{item.title}</strong><span>{item.teacherName} · {new Date(item.createdAt).toLocaleString()}</span></div><p>{item.body}</p></article>)}</div>}</article>
+    <div className="admin-intro"><div><span className="section-kicker">TEACHER PORTAL - COMMUNICATIONS</span><h2>Major advisories</h2><p>Post updates for students in your assigned {teacher.major} major.</p></div><span className="admin-count"><BellRing size={16} /> {advisories.length} posts</span></div>
+    <article className="panel teacher-advisory-composer"><div className="admin-panel-title"><span className="admin-panel-icon"><BellRing size={17} /></span><div><h3>{editingAdvisoryId ? 'Edit your advisory' : 'Publish an advisory'}</h3><p>Your post is shared with student accounts in {teacher.major}.</p></div></div><form className="admin-form" onSubmit={publishAdvisory}><label htmlFor="advisory-title">Title</label><input id="advisory-title" required minLength={5} maxLength={120} value={title} onChange={event => setTitle(event.target.value)} placeholder="Short announcement title" /><label htmlFor="advisory-body">Message</label><textarea id="advisory-body" required minLength={10} maxLength={1500} value={body} onChange={event => setBody(event.target.value)} placeholder="Write an update for your major students..." />{error && <div className="admin-error" role="alert">{error}</div>}{notice && <div className="password-saved" role="status">{notice}</div>}<div className="teacher-advisory-form-actions"><button className="login-submit" disabled={saving}>{saving ? 'Saving...' : editingAdvisoryId ? 'Save advisory changes' : 'Publish advisory'} {!saving && <ArrowRight size={15} />}</button>{editingAdvisoryId && <button type="button" className="admin-cancel-edit" disabled={saving} onClick={cancelEdit}>Cancel</button>}</div></form></article>
+    <article className="panel admin-directory teacher-grade-records"><div className="admin-directory-heading"><div><h3>Recent advisories</h3><p>Most recent posts for your assigned major</p></div><button className="admin-refresh" onClick={loadAdvisories} disabled={loading} aria-label="Refresh advisories"><Sparkles size={15} /></button></div>{error && !notice ? <div className="admin-error" role="alert">{error}</div> : loading ? <div className="admin-empty">Loading advisories...</div> : advisories.length === 0 ? <div className="admin-empty"><BellRing size={22} /><strong>No advisories yet</strong><span>Published updates will also appear in student Notifications.</span></div> : <div className="teacher-advisory-list">{advisories.map(item => <article className="teacher-advisory-item" key={item.advisoryId}><div className="teacher-advisory-item-heading"><div><strong>{item.title}</strong><span>{item.teacherName} - {new Date(item.updatedAt || item.createdAt).toLocaleString()}</span></div>{item.canEdit && <div className="admin-row-actions"><button type="button" className="admin-action-button" disabled={saving} onClick={() => { setEditingAdvisoryId(item.advisoryId); setTitle(item.title); setBody(item.body); setNotice(''); setError(''); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Edit</button><button type="button" className="admin-action-button danger" disabled={saving} onClick={() => deleteAdvisory(item)}>Delete</button></div>}</div><p>{item.body}</p></article>)}</div>}</article>
     <p className="teacher-feature-note">Post course and major-related updates only. Do not include sensitive student information in an advisory.</p>
   </section>
 }
-
 function App() {
   const [student, setStudent] = useState(null)
   const [homeAdvisories, setHomeAdvisories] = useState([])
-  const [homeEvents, setHomeEvents] = useState([])
+  const [homeAnnouncements, setHomeAnnouncements] = useState([])
   const [authReady, setAuthReady] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
   const [idInput, setIdInput] = useState('')
@@ -536,14 +598,28 @@ function App() {
   const [active, setActive] = useState('Overview')
   const [selectedMajor, setSelectedMajor] = useState('English')
   const [search, setSearch] = useState('')
-  const [notice, setNotice] = useState('')
+  const [notice, setNoticeValue] = useState('')
+  const noticeTimer = useRef(null)
+  const setNotice = message => {
+    if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
+    setNoticeValue(message)
+    if (message) noticeTimer.current = window.setTimeout(() => { setNoticeValue(''); noticeTimer.current = null }, 5000)
+  }
   const [mobileNav, setMobileNav] = useState(false)
+  const [showAnniversary, setShowAnniversary] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('eduportal-theme') || 'light')
   const studentId = student?.studentId || ''
+  useEffect(() => () => { if (noticeTimer.current) window.clearTimeout(noticeTimer.current) }, [])
   useEffect(() => {
-    if (student?.role !== 'student') { setHomeAdvisories([]); setHomeEvents([]); return }
-    Promise.all(['/api/student/advisories', '/api/student/events'].map(url => fetch(url, { credentials: 'include' }).then(response => response.ok ? response.json() : {})))
-      .then(([advisoryData, eventData]) => { setHomeAdvisories(advisoryData.advisories || []); setHomeEvents(eventData.events || []) }).catch(() => {})
+    if (!showAnniversary) return
+    const closeOnEscape = event => { if (event.key === 'Escape') setShowAnniversary(false) }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [showAnniversary])
+  useEffect(() => {
+    if (student?.role !== 'student') { setHomeAdvisories([]); setHomeAnnouncements([]); return }
+    Promise.all(['/api/student/advisories', '/api/student/announcements'].map(url => fetch(url, { credentials: 'include' }).then(response => response.ok ? response.json() : {})))
+      .then(([advisoryData, announcementData]) => { setHomeAdvisories(advisoryData.advisories || []); setHomeAnnouncements(announcementData.announcements || []) }).catch(() => {})
   }, [student?.studentId, student?.role])
   const studentName = student?.name || ''
   const studentInitials = studentName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || studentId.slice(-2)
@@ -551,11 +627,12 @@ function App() {
   const todayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date()).toUpperCase()
   const navItems = student?.role === 'teacher' ? [
     { title: 'TEACHING', links: [{ name: 'Teacher Dashboard', icon: LayoutDashboard }, { name: 'My Schedule', icon: CalendarRange }, { name: 'Attendance', icon: Clock3 }, { name: 'Gradebook', icon: BookMarked }, { name: 'Major Advisories', icon: BellRing }, { name: 'Account Settings', icon: Settings2 }] },
+  ] : student?.role === 'admin' ? [
+    { title: 'ADMINISTRATION', links: [{ name: 'Students', icon: ShieldCheck }, { name: 'Teacher Accounts', icon: GraduationCap }, { name: 'Class Schedules', icon: CalendarRange }, { name: 'Curriculum Catalog', icon: ChartNoAxesCombined }, { name: 'Announcements', icon: BellRing }, { name: 'Account Settings', icon: Settings2 }] },
   ] : [
-    { title: 'MENU', links: [{ name: 'Overview', icon: LayoutDashboard }, ...(student?.role === 'admin' ? [] : [{ name: 'Notifications', icon: BellRing }]), { name: 'Account Settings', icon: Settings2 }] },
+    { title: 'MENU', links: [{ name: 'Overview', icon: LayoutDashboard }, { name: 'Notifications', icon: BellRing }, { name: 'Account Settings', icon: Settings2 }] },
     { title: 'ACADEMICS', links: [{ name: 'Class Schedule', icon: CalendarRange }, { name: 'Academic Evaluation', icon: ChartNoAxesCombined }] },
-    { title: 'STUDENT SERVICES', links: [{ name: 'Campus Events', icon: CalendarDays }, { name: 'Community & Services', icon: HeartPulse }, { name: 'BSED Majors', icon: GraduationCap }] },
-    ...(student?.role === 'admin' ? [{ title: 'ADMINISTRATION', links: [{ name: 'Students', icon: ShieldCheck }, { name: 'Teacher Accounts', icon: GraduationCap }, { name: 'Class Schedules', icon: CalendarRange }, { name: 'Curriculum Catalog', icon: ChartNoAxesCombined }, { name: 'Campus Events', icon: CalendarDays }] }] : []),
+    { title: 'STUDENT SERVICES', links: [{ name: 'Announcements', icon: BellRing }, { name: 'Community & Services', icon: HeartPulse }, { name: 'BSED Majors', icon: GraduationCap }] },
   ]
   const selectNav = (name) => { setActive(name); setMobileNav(false) }
   useEffect(() => {
@@ -598,7 +675,7 @@ function App() {
   if (!studentId) return (
     <div className={`app-shell login-shell ${theme === 'dark' ? 'theme-dark' : ''}`}>
       <main className="login-page">
-        <div className="login-art" aria-hidden="true" />
+        <div className="login-art"><EducationDoodles className="education-doodles login-education-doodles" /></div>
         <div className="login-top"><div className="login-school-brand"><img src="/chcc-institutional-logo.jpg" alt="Concepcion Holy Cross College Inc. seal" /><span><strong>CONCEPCION HOLY CROSS COLLEGE INC.</strong><small>School of Education</small></span></div><button className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-pressed={theme === 'dark'} onClick={() => { const nextTheme = theme === 'dark' ? 'light' : 'dark'; setTheme(nextTheme); localStorage.setItem('eduportal-theme', nextTheme) }}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button></div>
         <section className="login-card"><div className="login-emblem"><img src="/education-council-logo.jpg" alt="Concepcion Holy Cross College Education Student Council seal" /></div><span className="section-kicker">CONCEPCION HOLY CROSS COLLEGE INC. · SCHOOL OF EDUCATION</span><h1>Welcome back</h1><p className="login-intro">Sign in to your BSED student portal and pick up where you left off.</p>
           <form className="login-form" onSubmit={signIn} noValidate><label htmlFor="student-id">Student ID or staff username</label><div className="login-input-wrap"><GraduationCap size={17} /><input id="student-id" autoComplete="username" placeholder="8-digit ID or staff username" value={idInput} onChange={event => { setIdInput(event.target.value.trim().slice(0, 32)); setLoginError('') }} /></div><small className="field-hint">Students use an 8-digit ID. Teachers and admins use their username.</small><label htmlFor="student-password">Password</label><div className="login-input-wrap"><LockKeyhole size={16} /><input id="student-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter your password" value={password} onChange={event => { setPassword(event.target.value); setLoginError('') }} /><button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>{loginError && <div className="login-error" role="alert">{loginError}</div>}<button className="login-submit" type="submit" disabled={signingIn}>{signingIn ? 'Signing in...' : 'Sign in'} {!signingIn && <ArrowRight size={16} />}</button></form>
@@ -620,23 +697,29 @@ function App() {
       {mobileNav && <button className="mobile-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
 
       <main className="main-area">
-        <header className="topbar"><button className="icon-button mobile-menu" aria-label="Open menu" onClick={() => setMobileNav(true)}><Menu size={21} /></button><div className="breadcrumb">Student Portal <ChevronRight size={14} /> <strong>{active}</strong></div><div className="topbar-actions"><label className="search-box"><Search size={16} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search anything..." /><kbd>⌘ K</kbd></label><button className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-pressed={theme === 'dark'} onClick={() => { const nextTheme = theme === 'dark' ? 'light' : 'dark'; setTheme(nextTheme); localStorage.setItem('eduportal-theme', nextTheme) }}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>{student.role !== 'admin' && <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotice('You’re all caught up!')}><Bell size={19} /><i /></button>}<div className="avatar avatar-top">{student.photoUrl ? <img src={student.photoUrl} alt="" /> : studentInitials}</div></div></header>
+        <EducationDoodles />
+        <header className="topbar"><button className="icon-button mobile-menu" aria-label="Open menu" onClick={() => setMobileNav(true)}><Menu size={21} /></button><div className="breadcrumb">Student Portal <ChevronRight size={14} /> <strong>{active}</strong></div><div className="topbar-actions"><button className="anniversary-trigger" type="button" onClick={() => setShowAnniversary(true)} aria-label="View the CHCC 30th founding anniversary banner"><img src="/chcc-30th-anniversary.jpg" alt="" /><span className="anniversary-trigger-copy"><strong>CHCC 30 Years</strong><small>30 Years of Excellence</small></span></button><label className="search-box"><Search size={16} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search anything..." /><kbd>⌘ K</kbd></label><button className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-pressed={theme === 'dark'} onClick={() => { const nextTheme = theme === 'dark' ? 'light' : 'dark'; setTheme(nextTheme); localStorage.setItem('eduportal-theme', nextTheme) }}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>{student.role === 'student' && <button className="icon-button notification-button" aria-label="Open announcements and notifications" onClick={() => selectNav('Notifications')}><Bell size={19} /></button>}<div className="avatar avatar-top">{student.photoUrl ? <img src={student.photoUrl} alt="" /> : studentInitials}</div></div></header>
 
         <div className="page-content">
           {active === 'Overview' && <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot" /> {todayLabel}</div><h1>Welcome, {studentName} <span className="wave">✳</span></h1><p>Ready to inspire the next generation? Here’s your day at a glance.</p></div><span className="term-select">Your academic information</span></section>}
 
-          {active === 'Teacher Dashboard' && student.role === 'teacher' ? <TeacherDashboard teacher={student} /> : active === 'Attendance' && student.role === 'teacher' ? <TeacherAttendance /> : active === 'Gradebook' && student.role === 'teacher' ? <TeacherGradebook teacher={student} /> : active === 'Major Advisories' && student.role === 'teacher' ? <TeacherAdvisories teacher={student} /> : active === 'Teacher Accounts' && student.role === 'admin' ? <TeacherAccounts setNotice={setNotice} /> : active === 'Students' && student.role === 'admin' ? <AdminStudents setNotice={setNotice} /> : active === 'Class Schedules' && student.role === 'admin' ? <AdminSchedules setNotice={setNotice} /> : ['Grade Approvals', 'Enrollment Review', 'Curriculum Catalog', 'Student Ledger Admin', 'Campus Events'].includes(active) && student.role === 'admin' ? <AdminWorkflow active={active} setNotice={setNotice} /> : active === 'Overview' ? <>
+          {active === 'Teacher Dashboard' && student.role === 'teacher' ? <TeacherDashboard teacher={student} /> : active === 'Attendance' && student.role === 'teacher' ? <TeacherAttendance /> : active === 'Gradebook' && student.role === 'teacher' ? <TeacherGradebook teacher={student} /> : active === 'Major Advisories' && student.role === 'teacher' ? <TeacherAdvisories teacher={student} /> : active === 'Teacher Accounts' && student.role === 'admin' ? <TeacherAccounts setNotice={setNotice} /> : active === 'Students' && student.role === 'admin' ? <AdminStudents setNotice={setNotice} /> : active === 'Class Schedules' && student.role === 'admin' ? <AdminSchedules setNotice={setNotice} /> : ['Grade Approvals', 'Enrollment Review', 'Curriculum Catalog', 'Student Ledger Admin', 'Announcements'].includes(active) && student.role === 'admin' ? <AdminWorkflow active={active} setNotice={setNotice} /> : active === 'Overview' ? <>
+          <article className="panel announcements-panel"><div className="panel-heading"><div><span className="section-kicker">SCHOOL UPDATES</span><h2>Latest announcements</h2></div><button className="subtle-link" onClick={() => selectNav('Announcements')}>View all <ArrowRight size={14} /></button></div><div className="announcement-list">{homeAnnouncements.slice(0, 4).map((post, index) => <div className="announcement" key={post.announcementId || `${post.createdAt}-${index}`}><div className="avatar avatar-violet">{post.authorName?.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'CH'}</div><div className="announcement-body"><div className="announcement-meta"><strong>{post.authorName || 'School Administrator'}</strong><span>·</span><span>{new Date(post.updatedAt || post.createdAt).toLocaleDateString()}</span></div><h3>{post.title}</h3><p>{post.body}</p></div></div>)}{homeAnnouncements.length === 0 && <p className="feature-muted">No school announcements have been posted yet.</p>}</div></article>
           <DashboardDetails student={student} />
-<section className="content-grid"><div className="left-column"><article className="panel announcements-panel"><div className="panel-heading"><div><span className="section-kicker">MAJOR ADVISORIES</span><h2>Latest announcements</h2></div>{student.role !== 'admin' && <button className="subtle-link" onClick={() => selectNav('Notifications')}>View all <ArrowRight size={14} /></button>}</div><div className="announcement-list">{homeAdvisories.slice(0, 4).map((post, index) => <div className="announcement" key={`${post.createdAt}-${index}`}><div className="avatar avatar-violet">{post.teacherName?.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'T'}</div><div className="announcement-body"><div className="announcement-meta"><strong>{post.teacherName}</strong><span>·</span><span>{new Date(post.createdAt).toLocaleDateString()}</span></div><h3>{post.title}</h3><p>{post.body}</p></div></div>)}{homeAdvisories.length === 0 && <p className="feature-muted">No major advisories have been posted.</p>}</div></article></div>
+          <section className="content-grid"><div className="left-column"><article className="panel majors-panel"><div className="panel-heading"><div><span className="section-kicker">FIND YOUR PEOPLE</span><h2>BSED majors</h2></div><button className="icon-button panel-more" aria-label="More major options"><MoreHorizontal size={18} /></button></div><p className="panel-description">Explore your department and connect with fellow future educators.</p><div className="major-list">{majors.map(major => <button key={major.code} className={`major-row ${selectedMajor === major.name ? 'major-selected' : ''}`} onClick={() => { setSelectedMajor(major.name); setNotice(`${major.name} major selected.`) }}><span className={`major-icon major-${major.color}`}>{major.icon}</span><span className="major-copy"><strong>{major.name}</strong><small>{major.students} students</small></span><ArrowRight size={15} className="major-arrow" /></button>)}</div><button className="all-majors-button" onClick={() => selectNav('BSED Majors')}>Explore all majors <ArrowRight size={15} /></button></article></div>
 
-          <div className="right-column"><article className="panel majors-panel"><div className="panel-heading"><div><span className="section-kicker">FIND YOUR PEOPLE</span><h2>BSED majors</h2></div><button className="icon-button panel-more" aria-label="More major options"><MoreHorizontal size={18} /></button></div><p className="panel-description">Explore your department and connect with fellow future educators.</p><div className="major-list">{majors.map(major => <button key={major.code} className={`major-row ${selectedMajor === major.name ? 'major-selected' : ''}`} onClick={() => { setSelectedMajor(major.name); setNotice(`${major.name} major selected.`) }}><span className={`major-icon major-${major.color}`}>{major.icon}</span><span className="major-copy"><strong>{major.name}</strong><small>{major.students} students</small></span><ArrowRight size={15} className="major-arrow" /></button>)}</div><button className="all-majors-button" onClick={() => selectNav('BSED Majors')}>Explore all majors <ArrowRight size={15} /></button></article>
-
-          <article className="panel quick-panel"><div className="panel-heading"><div><span className="section-kicker">CAMPUS CALENDAR</span><h2>Upcoming events</h2></div><CalendarDays size={17} className="quick-calendar" /></div><div className="event-list">{homeEvents.slice(0, 4).map(event => <div className="event-row" key={`${event.date}-${event.title}`}><div className="event-date"><strong>{new Date(`${event.date}T00:00:00`).getDate()}</strong><span>{new Date(`${event.date}T00:00:00`).toLocaleString('en', { month: 'short' }).toUpperCase()}</span></div><div className="event-copy"><strong>{event.title}</strong><small>{event.date} · {event.location}</small></div></div>)}{homeEvents.length === 0 && <p className="feature-muted">No upcoming events posted.</p>}</div><button className="text-link events-link" onClick={() => selectNav('Campus Events')}>See all events <ArrowRight size={15} /></button></article></div></section>
+          <div className="right-column"><article className="panel quick-panel"><div className="panel-heading"><div><span className="section-kicker">FROM YOUR MAJOR</span><h2>Teacher advisories</h2></div><BellRing size={17} className="quick-calendar" /></div><div className="event-list">{homeAdvisories.slice(0, 4).map((post, index) => <div className="event-row" key={`${post.createdAt}-${index}`}><div className="avatar avatar-violet">{post.teacherName?.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'T'}</div><div className="event-copy"><strong>{post.title}</strong><small>{post.teacherName} · {new Date(post.createdAt).toLocaleDateString()}</small></div></div>)}{homeAdvisories.length === 0 && <p className="feature-muted">No teacher advisories for your major yet.</p>}</div><button className="text-link events-link" onClick={() => selectNav('Notifications')}>See all advisories <ArrowRight size={15} /></button></article></div></section>
 
           <footer className="page-footer"><span>Made for future educators <span className="footer-heart">♥</span></span><span>Need help? <button onClick={() => setNotice('Contact your school administrator for support.')}>Contact support</button></span></footer>
           </> : <PortalPage active={active} student={student} onNotice={setNotice} />}
         </div>
       </main>
+      {showAnniversary && <div className="anniversary-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setShowAnniversary(false) }}>
+        <section className="anniversary-dialog" role="dialog" aria-modal="true" aria-labelledby="anniversary-dialog-title">
+          <div className="anniversary-dialog-heading"><div><span>CONCEPCION HOLY CROSS COLLEGE, INC.</span><h2 id="anniversary-dialog-title">30th Founding Anniversary</h2></div><button className="icon-button" type="button" aria-label="Close anniversary banner" onClick={() => setShowAnniversary(false)}><X size={19} /></button></div>
+          <img src="/chcc-30th-anniversary.jpg" alt="Concepcion Holy Cross College, Inc. 30th Founding Anniversary — 30 Years of Excellence, September 15, 2025" />
+        </section>
+      </div>}
       {search && <div className="search-hint"><Sparkles size={15} /><span>Searching portal for “{search}”</span><button onClick={() => setSearch('')}>Clear</button></div>}
       {notice && <div className="toast"><span className="toast-check"><Check size={14} /></span>{notice}<button onClick={() => setNotice('')} aria-label="Dismiss"><X size={15} /></button></div>}
     </div>

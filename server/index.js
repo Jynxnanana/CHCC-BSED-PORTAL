@@ -15,6 +15,7 @@ const admins = database.collection('admins')
 const teachers = database.collection('teachers')
 const grades = database.collection('grades')
 const advisories = database.collection('advisories')
+const announcements = database.collection('announcements')
 const classSchedules = database.collection('classSchedules')
 const attendance = database.collection('attendance')
 const curriculum = database.collection('curriculum')
@@ -511,8 +512,8 @@ app.patch('/api/admin/grade-approvals/:gradeId', requireAdmin, async (req, res) 
 
 app.get('/api/teacher/advisories', requireTeacher, async (req, res) => {
   try {
-    const records = await advisories.find({ major: req.account.major }, { projection: { _id: 0, title: 1, body: 1, teacherName: 1, major: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(100).toArray()
-    res.json({ advisories: records })
+    const records = await advisories.find({ major: req.account.major }, { projection: { title: 1, body: 1, teacherName: 1, major: 1, teacherId: 1, createdAt: 1, updatedAt: 1 } }).sort({ createdAt: -1 }).limit(100).toArray()
+    res.json({ advisories: records.map(({ _id, teacherId, ...record }) => ({ ...record, advisoryId: _id.toString(), canEdit: teacherId === req.account.studentId })) })
   } catch {
     res.status(503).json({ message: 'Could not load advisories.' })
   }
@@ -533,12 +534,102 @@ app.post('/api/teacher/advisories', requireTeacher, async (req, res) => {
   }
 })
 
+app.patch('/api/teacher/advisories/:advisoryId', requireTeacher, async (req, res) => {
+  const advisoryId = String(req.params.advisoryId || '')
+  const title = String(req.body?.title || '').trim()
+  const body = String(req.body?.body || '').trim()
+  if (!ObjectId.isValid(advisoryId)) return res.status(400).json({ message: 'Invalid advisory.' })
+  if (title.length < 5 || title.length > 120 || body.length < 10 || body.length > 1500) return res.status(400).json({ message: 'Use a title from 5–120 characters and message from 10–1,500 characters.' })
+  try {
+    const updatedAt = new Date()
+    const result = await advisories.updateOne({ _id: new ObjectId(advisoryId), teacherId: req.account.studentId, major: req.account.major }, { $set: { title, body, updatedAt } })
+    if (!result.matchedCount) return res.status(404).json({ message: 'Advisory not found or it is not yours to edit.' })
+    res.json({ advisoryId, title, body, updatedAt })
+  } catch {
+    res.status(503).json({ message: 'Could not update the advisory.' })
+  }
+})
+
+app.delete('/api/teacher/advisories/:advisoryId', requireTeacher, async (req, res) => {
+  const advisoryId = String(req.params.advisoryId || '')
+  if (!ObjectId.isValid(advisoryId)) return res.status(400).json({ message: 'Invalid advisory.' })
+  try {
+    const result = await advisories.deleteOne({ _id: new ObjectId(advisoryId), teacherId: req.account.studentId, major: req.account.major })
+    if (!result.deletedCount) return res.status(404).json({ message: 'Advisory not found or it is not yours to delete.' })
+    res.status(204).end()
+  } catch {
+    res.status(503).json({ message: 'Could not delete the advisory.' })
+  }
+})
+
 app.get('/api/student/advisories', requireStudent, async (req, res) => {
   try {
-    const records = await advisories.find({ major: req.account.major }, { projection: { _id: 0, title: 1, body: 1, teacherName: 1, major: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(100).toArray()
+    const records = await advisories.find({ major: req.account.major }, { projection: { _id: 0, title: 1, body: 1, teacherName: 1, major: 1, createdAt: 1, updatedAt: 1 } }).sort({ createdAt: -1 }).limit(100).toArray()
     res.json({ advisories: records })
   } catch {
     res.status(503).json({ message: 'Could not load advisories.' })
+  }
+})
+
+app.get('/api/student/announcements', requireStudent, async (_req, res) => {
+  try {
+    const records = await announcements.find({}).sort({ createdAt: -1 }).limit(100).toArray()
+    res.json({ announcements: records.map(({ _id, ...item }) => ({ ...item, announcementId: _id.toString() })) })
+  } catch {
+    res.status(503).json({ message: 'Could not load school announcements.' })
+  }
+})
+
+app.get('/api/admin/announcements', requireAdmin, async (_req, res) => {
+  try {
+    const records = await announcements.find({}).sort({ createdAt: -1 }).limit(200).toArray()
+    res.json({ announcements: records.map(({ _id, ...item }) => ({ ...item, announcementId: _id.toString() })) })
+  } catch {
+    res.status(503).json({ message: 'Could not load announcements.' })
+  }
+})
+
+app.post('/api/admin/announcements', requireAdmin, async (req, res) => {
+  const title = String(req.body?.title || '').trim()
+  const body = String(req.body?.body || '').trim()
+  if (title.length < 3 || title.length > 120 || body.length < 5 || body.length > 3000) {
+    return res.status(400).json({ message: 'Use a title from 3–120 characters and announcement text from 5–3,000 characters.' })
+  }
+  try {
+    const announcement = { title, body, authorName: req.account.name || req.account.username || 'School Administrator', createdBy: req.account.studentId, createdAt: new Date() }
+    const result = await announcements.insertOne(announcement)
+    res.status(201).json({ announcement: { ...announcement, announcementId: result.insertedId.toString() } })
+  } catch {
+    res.status(503).json({ message: 'Could not publish the announcement.' })
+  }
+})
+
+app.patch('/api/admin/announcements/:announcementId', requireAdmin, async (req, res) => {
+  const announcementId = String(req.params.announcementId || '')
+  const title = String(req.body?.title || '').trim()
+  const body = String(req.body?.body || '').trim()
+  if (!ObjectId.isValid(announcementId)) return res.status(400).json({ message: 'Invalid announcement.' })
+  if (title.length < 3 || title.length > 120 || body.length < 5 || body.length > 3000) {
+    return res.status(400).json({ message: 'Use a title from 3–120 characters and announcement text from 5–3,000 characters.' })
+  }
+  try {
+    const updatedAt = new Date()
+    const result = await announcements.updateOne({ _id: new ObjectId(announcementId) }, { $set: { title, body, updatedAt, updatedBy: req.account.studentId } })
+    if (!result.matchedCount) return res.status(404).json({ message: 'Announcement not found.' })
+    res.json({ announcementId, title, body, updatedAt })
+  } catch {
+    res.status(503).json({ message: 'Could not update the announcement.' })
+  }
+})
+
+app.delete('/api/admin/announcements/:announcementId', requireAdmin, async (req, res) => {
+  if (!ObjectId.isValid(req.params.announcementId)) return res.status(400).json({ message: 'Invalid announcement.' })
+  try {
+    const result = await announcements.deleteOne({ _id: new ObjectId(req.params.announcementId) })
+    if (!result.deletedCount) return res.status(404).json({ message: 'Announcement not found.' })
+    res.status(204).end()
+  } catch {
+    res.status(503).json({ message: 'Could not delete the announcement.' })
   }
 })
 
@@ -752,6 +843,10 @@ app.post('/api/student/community', requireStudent, async (req, res) => {
   } catch { res.status(503).json({ message: 'Could not publish your post.' }) }
 })
 
+app.use('/api', (_req, res) => {
+  res.status(404).json({ message: 'API route not found. Restart or redeploy the server to load the latest API routes.' })
+})
+
 app.use(express.static(distDirectory, { index: false, maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0 }))
 app.get('*', (req, res, next) => {
   if (req.path === '/api' || req.path.startsWith('/api/')) return next()
@@ -786,6 +881,7 @@ async function start() {
   await campusEvents.createIndex({ date: 1 })
   await communityPosts.createIndex({ createdAt: -1 })
   await advisories.createIndex({ major: 1, createdAt: -1 })
+  await announcements.createIndex({ createdAt: -1 })
   await classSchedules.createIndex({ major: 1, term: 1, day: 1 })
   await classSchedules.createIndex({ teacherId: 1, term: 1 })
   await sessions.createIndex({ tokenHash: 1 }, { unique: true })

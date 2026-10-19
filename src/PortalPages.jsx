@@ -52,12 +52,12 @@ function DataTable({ headings, rows }) {
 }
 
 export function DashboardDetails({ student }) {
-  const [data, setData] = useState({ grades: [], subjects: [], attendance: [], schedules: [], enrollments: [], events: [] })
+  const [data, setData] = useState({ grades: [], subjects: [], attendance: [], schedules: [], enrollments: [] })
   const [loading, setLoading] = useState(true)
   const todayName = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date())
   useEffect(() => {
-    Promise.all(['/api/student/grades', '/api/student/evaluation', '/api/student/attendance', '/api/student/schedules', '/api/student/enrollments', '/api/student/events'].map(url => fetch(url, { credentials: 'include' }).then(response => response.ok ? response.json() : {})))
-      .then(([grades, subjects, attendanceRecords, schedules, enrollments, events]) => setData({ grades: grades.grades || [], subjects: subjects.subjects || [], attendance: attendanceRecords.records || [], schedules: schedules.schedules || [], enrollments: enrollments.enrollments || [], events: events.events || [] }))
+    Promise.all(['/api/student/grades', '/api/student/evaluation', '/api/student/attendance', '/api/student/schedules', '/api/student/enrollments'].map(url => fetch(url, { credentials: 'include' }).then(response => response.ok ? response.json() : {})))
+      .then(([grades, subjects, attendanceRecords, schedules, enrollments]) => setData({ grades: grades.grades || [], subjects: subjects.subjects || [], attendance: attendanceRecords.records || [], schedules: schedules.schedules || [], enrollments: enrollments.enrollments || [] }))
       .finally(() => setLoading(false))
   }, [])
   const passed = data.subjects.filter(item => ['Passed', 'Credited'].includes(item.status)).length
@@ -70,7 +70,7 @@ export function DashboardDetails({ student }) {
   return <>
     <div className="student-overview-grid"><Panel className="student-profile-card"><div className="student-profile-top"><div className="student-profile-avatar">{student?.name?.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'BS'}</div><div><span className="section-kicker">STUDENT PROFILE</span><h3>{student?.name || 'BSED Student'}</h3><p>{student?.studentId}</p></div></div><div className="profile-facts"><div><span>PROGRAM</span><strong>Bachelor of Secondary Education</strong></div><div><span>MAJOR</span><strong>{student?.major}</strong></div><div><span>COLLEGE YEAR</span><strong>{student?.yearLevel || 'Not assigned'}</strong></div><div><span>ORGANIZATION</span><strong>{student?.organization || 'Major'} · {student?.orgPosition || 'Member'}</strong></div><div><span>SECTION</span><strong>{student?.section || 'Not assigned'}</strong></div></div></Panel><Panel className="gwa-card"><div className="metric-label">APPROVED GWA</div><div className="gwa-number">{loading ? '…' : gwa}</div><div className="gwa-subline">Calculated from Registrar-approved grades</div><span className="gwa-subline">Your approved academic average</span></Panel></div>
     <div className="student-metrics-grid"><Panel><div className="metric-label">SUBJECTS PASSED</div><div className="small-metric green-text">{loading ? '…' : passed}</div><span className="metric-foot">From official curriculum records</span></Panel><Panel><div className="metric-label">SUBJECTS FAILED</div><div className="small-metric red-text">{loading ? '…' : failed}</div><span className="metric-foot">Review with your academic adviser</span></Panel><Panel><div className="metric-label">APPROVED LOAD</div><div className="small-metric">{loading ? '…' : units} <span>units</span></div><span className="metric-foot">Registrar-approved registration</span></Panel><Panel><div className="metric-label">ATTENDANCE RATE</div><div className="small-metric">{loading ? '…' : attendanceRate === null ? '—' : `${attendanceRate}%`}</div><span className="metric-foot">Based on teacher-submitted records</span></Panel></div>
-    <div className="dashboard-lower-grid"><Panel><PageHeading eyebrow="UPCOMING CAMPUS EVENTS" title="School calendar" description="Events posted by the administrator." />{loading ? <div className="feature-empty">Loading events...</div> : data.events.length ? data.events.slice(0, 4).map(item => <div className="teacher-advisory-item" key={`${item.date}-${item.title}`}><div><strong>{item.title}</strong><span>{item.date} · {item.location}</span></div></div>) : <div className="feature-empty">No upcoming events posted.</div>}</Panel><Panel><PageHeading eyebrow={`TODAY · ${todayName.toUpperCase()}`} title="Your classes today" description="From your assigned official schedule." />{loading ? <div className="feature-empty">Loading schedule...</div> : todayClasses.length ? todayClasses.map(item => <div className="today-class" key={item.scheduleId}><time>{item.time}</time><div><strong>{item.subject}</strong><span>{item.courseCode} · {item.room}</span></div></div>) : <div className="feature-empty">No classes are listed for today.</div>}</Panel></div>
+    <div className="dashboard-lower-grid dashboard-classes-only"><Panel><PageHeading eyebrow={`TODAY · ${todayName.toUpperCase()}`} title="Your classes today" description="From your assigned official schedule." />{loading ? <div className="feature-empty">Loading schedule...</div> : todayClasses.length ? todayClasses.map(item => <div className="today-class" key={item.scheduleId}><time>{item.time}</time><div><strong>{item.subject}</strong><span>{item.courseCode} · {item.room}</span></div></div>) : <div className="feature-empty">No classes are listed for today.</div>}</Panel></div>
   </>
 }
 function ClassSchedulePage({ student }) {
@@ -237,12 +237,12 @@ function DatabaseRegistrationPage({ onNotice }) {
   return <><PageHeading eyebrow="REGISTRAR · CLASS REQUEST" title="Online Registration" description="Select official classes and send your request to the Registrar." />{loading ? <Panel><div className="feature-empty">Loading available classes...</div></Panel> : <><div className="payment-warning"><ShieldCheck size={17} /><span>The Registrar makes the final enrollment decision. Contact the Registrar's office for request status.</span></div>{error && <div className="admin-error" role="alert">{error}</div>}{pending && <Panel>Your {term} request is <strong>{pending.status}</strong>. Contact the Registrar's office for an update.</Panel>}{!schedules.length ? <Panel><div className="feature-empty"><BookOpen size={22} /><strong>No official classes are open for registration</strong><span>Ask the administrator to add verified class schedules first.</span></div></Panel> : <Panel className="registration-panel"><div className="panel-title-row"><div><h3>Available official classes</h3><p>Select the academic term and requested classes.</p></div><label>Term <select value={term} onChange={event => { setTerm(event.target.value); setSelected([]) }}>{[...new Set(schedules.map(item => item.term))].map(value => <option key={value}>{value}</option>)}</select></label></div><div className="registration-options">{offerings.map(item => <label className={`registration-option ${selected.includes(item.scheduleId) ? 'registration-selected' : ''}`} key={item.scheduleId}><input type="checkbox" disabled={Boolean(pending)} checked={selected.includes(item.scheduleId)} onChange={() => setSelected(current => current.includes(item.scheduleId) ? current.filter(id => id !== item.scheduleId) : current.length >= 12 ? current : [...current, item.scheduleId])} /><span><strong>{item.courseCode} · {item.subject}</strong><small>{item.section || 'All sections'} · {item.units} units · {item.day} · {item.time} · {item.room}</small></span><Check size={16} /></label>)}</div><div className="registration-footer"><span>{selected.length} classes · {units} units selected</span><button className="login-submit" disabled={!selected.length || units > 24 || Boolean(pending) || saving} onClick={submit}>{saving ? 'Submitting...' : 'Submit registration request'} <ArrowRight size={15} /></button></div>{units > 24 && <div className="admin-error">Selected course load is over 24 units. Contact the Registrar for an overload review.</div>}</Panel>}</>}</>
 }
 
-function DatabaseEventsPage() {
-  const [events, setEvents] = useState([])
+function DatabaseAnnouncementsPage() {
+  const [announcements, setAnnouncements] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  useEffect(() => { fetch('/api/student/events', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load campus events.'); setEvents(result.events) }).catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
-  return <><PageHeading eyebrow="CAMPUS LIFE · OFFICIAL UPDATES" title="Campus Events" description="Upcoming events posted by the school administrator." />{loading ? <Panel><div className="feature-empty">Loading events...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : events.length ? <div className="notification-list">{events.map(item => <Panel key={`${item.date}-${item.title}`}><span className="notification-date">{item.date} · {item.location}</span><h3>{item.title}</h3><p>{item.description}</p></Panel>)}</div> : <Panel><div className="feature-empty"><CalendarDays size={22} /><strong>No upcoming events posted</strong><span>Official campus event details will appear here.</span></div></Panel>}</>
+  useEffect(() => { fetch('/api/student/announcements', { credentials: 'include' }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load announcements.'); setAnnouncements(result.announcements) }).catch(loadError => setError(loadError.message)).finally(() => setLoading(false)) }, [])
+  return <><PageHeading eyebrow="SCHOOL UPDATES · OFFICIAL NOTICES" title="Announcements" description="Official updates from the school administrator." />{loading ? <Panel><div className="feature-empty">Loading announcements...</div></Panel> : error ? <div className="admin-error" role="alert">{error}</div> : announcements.length ? <div className="notification-list">{announcements.map(item => <Panel key={item.announcementId}><span className="notification-date">{item.authorName || 'School Administrator'} · {new Date(item.updatedAt || item.createdAt).toLocaleString()}</span><h3>{item.title}</h3><p>{item.body}</p></Panel>)}</div> : <Panel><div className="feature-empty"><BellRing size={22} /><strong>No announcements yet</strong><span>Official school updates will appear here when they are posted.</span></div></Panel>}</>
 }
 
 function DatabaseCommunityPage({ onNotice }) {
@@ -272,19 +272,37 @@ function ServicesPage({ onNotice }) {
 }
 
 function NotificationsPage() {
-  const [advisories, setAdvisories] = useState([])
+  const [updates, setUpdates] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   useEffect(() => {
-    fetch('/api/student/advisories', { credentials: 'include' })
-      .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not load advisories.'); setAdvisories(result.advisories) })
-      .catch(loadError => setError(loadError.message))
-      .finally(() => setLoading(false))
+    let cancelled = false
+    const endpoints = [
+      ['/api/student/advisories', 'advisories'],
+      ['/api/student/announcements', 'announcements'],
+    ]
+    Promise.all(endpoints.map(async ([url, key]) => {
+      const response = await fetch(url, { credentials: 'include' })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.message || 'Could not load portal updates.')
+      return result[key] || []
+    }))
+      .then(([advisories, announcements]) => {
+        const merged = [
+          ...advisories.map(item => ({ ...item, updateType: 'advisory', sortDate: item.createdAt })),
+          ...announcements.map(item => ({ ...item, updateType: 'announcement', sortDate: item.updatedAt || item.createdAt })),
+        ].sort((a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime())
+        if (!cancelled) setUpdates(merged)
+      })
+      .catch(loadError => { if (!cancelled) setError(loadError.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [])
-  return <><PageHeading eyebrow="PORTAL UPDATES" title="Notifications" description="Advisories for your BSED major." />
-    {error ? <div className="admin-error" role="alert">{error}</div> : loading ? <Panel><div className="feature-empty">Loading advisories...</div></Panel> : advisories.length === 0 ? <Panel><div className="feature-empty"><BellRing size={22} /><strong>No advisories yet</strong><span>Updates from your major teachers will appear here.</span></div></Panel> : <div className="notification-list">{advisories.map((item, index) => <Panel key={`${item.createdAt}-${index}`}><span className="notification-marker" /><div><span className="notification-date">{new Date(item.createdAt).toLocaleString()}</span><h3>{item.title}</h3><p>{item.body}</p><span className="notification-tag">{item.teacherName} · {item.major}</span></div></Panel>)}</div>}
+  return <><PageHeading eyebrow="PORTAL UPDATES" title="Notifications" description="School announcements and updates from teachers in your major." />
+    {error ? <div className="admin-error" role="alert">{error}</div> : loading ? <Panel><div className="feature-empty">Loading announcements and advisories...</div></Panel> : updates.length === 0 ? <Panel><div className="feature-empty"><BellRing size={22} /><strong>No portal updates yet</strong><span>School announcements and major advisories will appear here.</span></div></Panel> : <div className="notification-list">{updates.map((item, index) => <Panel key={item.announcementId || `${item.updateType}-${item.createdAt}-${index}`}><span className="notification-marker" /><div><span className="notification-date">{item.updateType === 'announcement' ? 'SCHOOL ANNOUNCEMENT' : 'MAJOR ADVISORY'} - {new Date(item.sortDate).toLocaleString()}</span><h3>{item.title}</h3><p>{item.body}</p><span className="notification-tag">{item.updateType === 'announcement' ? item.authorName || 'School Administrator - All students' : `${item.teacherName} - ${item.major}`}</span></div></Panel>)}</div>}
   </>
 }
+
 function AccountSettingsPage({ student, onNotice }) {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -321,7 +339,7 @@ export default function PortalPage({ active, student, onNotice }) {
     'Attendance Records': <DatabaseAttendancePage />,
     'Report of Grades': <GradesPage />,
     'Academic Evaluation': <DatabaseEvaluationPage />,
-    'Campus Events': <DatabaseEventsPage />,
+    Announcements: <DatabaseAnnouncementsPage />,
     'Community & Services': <DatabaseCommunityPage onNotice={onNotice} />,
     'BSED Majors': <MajorsPage />,
     Notifications: <NotificationsPage />,

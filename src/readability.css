@@ -1,23 +1,79 @@
-/* Clearer type scale across the portal while keeping its compact layout. */
-body { font-weight: 450; }
-.nav-link { font-size: 13px; font-weight: 550; }
-.nav-label, .section-kicker, .stat-top, .metric-label, .profile-facts span { font-size: 10px; }
-.school-pill strong, .student-card strong { font-size: 12px; }
-.school-pill small, .student-card small, .help-card span, .sidebar-footer { font-size: 11px; }
-.breadcrumb, .welcome-row p, .term-select, .stat-note, .panel-description { font-size: 12px; }
-.search-box input { font-size: 12px; }
-.feature-heading p, .feature-note, .feature-table td, .table-toolbar, .today-class, .profile-facts strong,
-.admin-intro p, .admin-panel-title p, .admin-directory-heading p, .admin-form input, .admin-form select,
-.admin-table td { font-size: 12px; }
-.feature-table th, .admin-table th, .admin-form label, .admin-major-pill { font-size: 10px; }
-.status-pill, .table-subline, .notification-date, .notification-tag, .metric-foot { font-size: 10px; }
-.student-profile-top h3 { font-size: 16px; }
-.admin-intro h2 { font-size: 21px; }
-.admin-panel-title h3, .admin-directory-heading h3 { font-size: 14px; }
-.feature-action { font-size: 11px; }
-.term-picker, .admin-count { font-size: 11px; }
-.welcome-row h1 { font-weight: 800; }
+/* Comfortable type sizes across the portal UI. */
+body { font-size: 15px; font-weight: 450; }
+
+.nav-link { font-size: 15px; font-weight: 550; }
+.nav-label, .section-kicker, .stat-top, .metric-label, .profile-facts span { font-size: 11px; }
+.school-pill strong, .student-card strong { font-size: 14px; }
+.school-pill small, .student-card small, .help-card span, .sidebar-footer { font-size: 13px; }
+.help-card strong { font-size: 13px; }
+.breadcrumb, .welcome-row p, .term-select, .stat-note, .panel-description { font-size: 14px; }
+.eyebrow { font-size: 11px; }
+.search-box input { font-size: 14px; }
+.search-box kbd { font-size: 11px; }
+.panel h2 { font-size: 18px; }
+
+.announcement-meta { font-size: 12px; }
+.announcement-meta strong, .major-copy strong { font-size: 14px; }
+.announcement-body p, .major-copy small, .event-copy small { font-size: 13px; }
+.event-copy strong { font-size: 13px; }
+.text-link, .subtle-link, .all-majors-button { font-size: 13px; }
+
+.feature-heading h2 { font-size: 22px; }
+.feature-heading p, .feature-note, .feature-table td, .table-toolbar, .today-class,
+.profile-facts strong, .admin-intro p, .admin-panel-title p, .admin-directory-heading p,
+.admin-form input, .admin-form select, .admin-table td, .admin-error,
+.teacher-feature-note, .teacher-roster-count, .community-post p, .service-cards > .panel p,
+.notification-list p, .feature-muted, .feature-empty { font-size: 13px; }
+.feature-table th, .admin-table th, .admin-form label, .admin-major-pill,
+.status-pill, .table-subline, .notification-date, .notification-tag, .metric-foot { font-size: 12px; }
+.feature-action, .term-picker, .admin-count, .table-toolbar label { font-size: 13px; }
+.admin-intro h2 { font-size: 22px; }
+.admin-panel-title h3, .admin-directory-heading h3, .admin-table td strong { font-size: 17px; }
+.admin-form .login-submit { font-size: 14px; }
+.admin-empty strong, .teacher-summary-card small, .teacher-roster-search input,
+.teacher-advisory-item p, .teacher-advisory-item span { font-size: 13px; }
+.teacher-grade-status { font-size: 12px; }
+.today-class time, .today-class span { font-size: 12px; }
+.today-class strong { font-size: 15px; }
+.profile-facts strong { font-size: 14px; }
+.student-profile-top h3 { font-size: 18px; }
+.student-profile-top p, .gwa-subline { font-size: 12px; }
+
+.feature-table td strong, .community-post strong { font-size: 14px; }
+.community-post small, .community-post span, .library-links a { font-size: 12px; }
+.service-cards .feature-action { font-size: 12px; }
+.feature-heading .section-kicker { font-size: 11px; }
+.feature-empty strong, .notification-list h3 { font-size: 15px; }
+.admin-action-button, .admin-cancel-edit { font-size: 13px; }
+.teacher-advisory-composer textarea { font-size: 14px; }
+.teacher-advisory-item strong { font-size: 14px; }
+.schedule-item time, .schedule-event small, .class-index, .pie-legend > span { font-size: 12px; }
+.schedule-event strong { font-size: 13px; }
+.event-date strong { font-size: 16px; }
+.event-date span { font-size: 10px; }
+.announcement .avatar { font-size: 11px; }
+.tag { font-size: 10px; }
+.major-total, .empty-majors { font-size: 13px; }
+.empty-majors strong { font-size: 16px; }
+.empty-majors button { font-size: 13px; }
+.major-detail-card h3 { font-size: 17px; }
+.major-detail-card > p, .major-subjects > span { font-size: 13px; }
+.major-code, .major-card-footer > span, .major-card-footer button { font-size: 12px; }
+.major-subjects > strong { font-size: 12px; }
+.explorer-search input { font-size: 14px; }
+.stat-value small, .small-metric span { font-size: 12px; }
+.page-footer, .page-footer button { font-size: 12px; }
+.toast, .search-hint { font-size: 13px; }
+.login-card > .section-kicker { font-size: 11px; }
+.login-intro { font-size: 15px; }
+.login-form > label { font-size: 13px; }
+.login-input-wrap input { font-size: 15px; }
+.field-hint, .login-error, .login-demo, .login-footer { font-size: 12px; }
+.login-submit { font-size: 15px; }
+
 @media (max-width: 620px) {
-  .nav-link { font-size: 14px; }
-  .feature-table td, .admin-table td, .profile-facts strong, .feature-heading p { font-size: 12px; }
+  .nav-link { font-size: 15px; }
+  .feature-table td, .admin-table td, .profile-facts strong, .feature-heading p { font-size: 13px; }
+  .welcome-row h1 { font-size: 27px; }
+  .welcome-row p { font-size: 13px; }
 }
